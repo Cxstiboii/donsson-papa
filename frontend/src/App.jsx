@@ -9,12 +9,14 @@ import {
   Factory,
   PackageCheck,
   TriangleAlert,
+  LineChart,
 } from "lucide-react";
 import Login from "./components/Login.jsx";
 import Referencias from "./components/Referencias.jsx";
 import Materiales from "./components/Materiales.jsx";
 import Parametros from "./components/Parametros.jsx";
 import Comparativo from "./components/Comparativo.jsx";
+import TabGraficos from "./TabGraficos.jsx";
 import {
   getToken,
   clearToken,
@@ -29,6 +31,7 @@ const TABS = [
   { key: "materiales", label: "Materiales", icon: Boxes },
   { key: "parametros", label: "Parámetros", icon: Sliders },
   { key: "comparativo", label: "Comparativo Odoo", icon: GitCompare },
+  { key: "graficos", label: "Gráficos", icon: LineChart },
 ];
 
 export default function App() {
@@ -157,6 +160,9 @@ export default function App() {
             )}
             {tab === "comparativo" && (
               <Comparativo referencias={referencias} parametros={parametros} />
+            )}
+            {tab === "graficos" && (
+              <TabGraficos referencias={referencias} parametros={parametros} />
             )}
           </>
         )}

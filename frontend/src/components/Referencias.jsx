@@ -1,6 +1,8 @@
 import { useMemo, useState } from "react";
-import { Plus, Pencil, Trash2, Search, FileBarChart, AlertCircle, X } from "lucide-react";
+import { Plus, Pencil, Trash2, Search, FileBarChart, AlertCircle, X, Download } from "lucide-react";
 import { referenciasApi, calcCostos, COP, mesLabel } from "../api.js";
+import FiltroFecha, { dentroDeRango } from "../FiltroFecha.jsx";
+import { exportarExcel } from "../exportExcel.js";
 
 function emptyForm() {
   return { id: "", nombre: "", familia: "", mes: "", hMOD: 1, hCIF: 0.5, costoReal: "", consumos: {} };
@@ -9,7 +11,10 @@ function emptyForm() {
 export default function Referencias({ referencias, materiales, parametros, reload }) {
   const [busqueda, setBusqueda] = useState("");
   const [familia, setFamilia] = useState("");
+  const [modoFecha, setModoFecha] = useState("mensual");
   const [mesFiltro, setMesFiltro] = useState("");
+  const [desde, setDesde] = useState("");
+  const [hasta, setHasta] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState(emptyForm());
@@ -23,14 +28,28 @@ export default function Referencias({ referencias, materiales, parametros, reloa
   const filtradas = useMemo(() => {
     return referencias.filter((r) => {
       if (familia && r.familia !== familia) return false;
-      if (mesFiltro && r.mes !== mesFiltro) return false;
+      if (modoFecha === "mensual") {
+        if (mesFiltro && r.mes !== mesFiltro) return false;
+      } else {
+        if ((desde || hasta) && !dentroDeRango(r.mes, desde, hasta)) return false;
+      }
       if (busqueda) {
         const q = busqueda.toLowerCase();
         if (!r.id.toLowerCase().includes(q) && !r.nombre.toLowerCase().includes(q)) return false;
       }
       return true;
     });
-  }, [referencias, familia, mesFiltro, busqueda]);
+  }, [referencias, familia, modoFecha, mesFiltro, desde, hasta, busqueda]);
+
+  const filtroLabel = useMemo(() => {
+    if (modoFecha === "mensual") return mesFiltro ? mesLabel(mesFiltro) : "Todos los meses";
+    if (desde || hasta) return `${desde ? mesLabel(desde) : "…"} a ${hasta ? mesLabel(hasta) : "…"}`;
+    return "Todos los meses";
+  }, [modoFecha, mesFiltro, desde, hasta]);
+
+  function handleExport() {
+    exportarExcel(filtradas, parametros, filtroLabel);
+  }
 
   function openCreate() {
     setEditing(null);
@@ -114,12 +133,15 @@ export default function Referencias({ referencias, materiales, parametros, reloa
             style={{ paddingLeft: 36 }}
           />
         </div>
-        <input
-          type="month"
-          value={mesFiltro}
-          onChange={(e) => setMesFiltro(e.target.value)}
-          className="input"
-          style={{ width: "auto" }}
+        <FiltroFecha
+          modo={modoFecha}
+          setModo={setModoFecha}
+          mes={mesFiltro}
+          setMes={setMesFiltro}
+          desde={desde}
+          setDesde={setDesde}
+          hasta={hasta}
+          setHasta={setHasta}
         />
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
           <button className={`pill ${!familia ? "active" : ""}`} onClick={() => setFamilia("")}>Todas</button>
@@ -128,6 +150,14 @@ export default function Referencias({ referencias, materiales, parametros, reloa
           ))}
         </div>
         <div style={{ flex: 1 }} />
+        <button
+          onClick={handleExport}
+          className="btn"
+          style={{ background: "#065F46", color: "#fff", border: "none" }}
+        >
+          <Download size={18} />
+          Exportar Excel
+        </button>
         <button onClick={openCreate} className="btn btn-primary">
           <Plus size={20} />
           Nueva referencia
