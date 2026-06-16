@@ -63,11 +63,12 @@ export function calcCostos(ref, params) {
   const mpd = (ref.consumos || []).reduce((s, c) => {
     return s + (c.material?.costo || 0) * (c.cantidad || 0);
   }, 0);
-  const mod = params.tarifaMOD * (ref.hMOD || 0);
-  const cif = params.tarifaCIF * (ref.hCIF || 0);
+  const mod = (params.tarifaMOD || 0) * (ref.hMOD || 0);
+  const cif = (params.tarifaCIF || 0) * (ref.hCIF || 0);
   const costoProd = mpd + mod + cif;
-  const costoTotal = costoProd * (1 + params.pctGAV / 100);
-  const precioVenta = costoTotal / (1 - params.pctMargen / 100);
+  const costoTotal = costoProd * (1 + (params.pctGAV || 0) / 100);
+  const divisorMargen = 1 - (params.pctMargen || 0) / 100;
+  const precioVenta = divisorMargen > 0 ? costoTotal / divisorMargen : costoTotal;
   const costoReal = ref.costoReal || 0;
   const variacion = costoReal > 0 ? ((costoProd - costoReal) / costoReal) * 100 : null;
   return {

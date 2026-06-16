@@ -188,9 +188,13 @@ const S = {
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+function safeValue(value) {
+  if (typeof value === "number" && !Number.isFinite(value)) return 0
+  return value
+}
 function setCell(ws, col, row, value, style, fmt) {
   const cell = ws.getCell(row, col)
-  cell.value = value
+  cell.value = safeValue(value)
   if (style) Object.assign(cell, style)
   if (fmt) cell.numFmt = fmt
   return cell
@@ -217,7 +221,6 @@ function materialesUnicos(referencias) {
 }
 function landscapePage(ws) {
   ws.pageSetup = { orientation: "landscape", fitToPage: true, fitToWidth: 1, fitToHeight: 0 }
-  ws.views = [{ state: "frozen", ySplit: 0 }]
 }
 
 // ---------------------------------------------------------------------------
