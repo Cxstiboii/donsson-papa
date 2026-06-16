@@ -48,7 +48,10 @@ export default function Referencias({ referencias, materiales, parametros, reloa
   }, [modoFecha, mesFiltro, desde, hasta]);
 
   function handleExport() {
-    exportarExcel(filtradas, parametros, filtroLabel);
+    exportarExcel(filtradas, parametros, filtroLabel).catch((err) => {
+      console.error("Error exportando Excel:", err);
+      setError("No se pudo generar el archivo Excel.");
+    });
   }
 
   function openCreate() {
