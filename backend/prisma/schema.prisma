@@ -1,0 +1,57 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Material {
+  id        String    @id
+  nombre    String
+  unidad    String
+  costo     Float
+  proveedor String    @default("")
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  consumos  Consumo[]
+}
+
+model Referencia {
+  id            String    @id
+  nombre        String
+  familia       String
+  hMOD          Float     @default(1)
+  hCIF          Float     @default(0.5)
+  costoReal     Float     @default(0)
+  mes           String
+  fechaCreacion String
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  consumos      Consumo[]
+}
+
+model Consumo {
+  id           Int        @id @default(autoincrement())
+  referenciaId String
+  materialId   String
+  cantidad     Float
+  referencia   Referencia @relation(fields: [referenciaId], references: [id], onDelete: Cascade)
+  material     Material   @relation(fields: [materialId], references: [id])
+
+  @@unique([referenciaId, materialId])
+}
+
+model Parametros {
+  id        Int   @id @default(1)
+  tarifaMOD Float @default(9500)
+  tarifaCIF Float @default(6200)
+  pctGAV    Float @default(18)
+  pctMargen Float @default(25)
+}
+
+model Usuario {
+  id           Int    @id @default(1)
+  passwordHash String
+}
