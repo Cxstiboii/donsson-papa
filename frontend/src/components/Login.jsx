@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { authApi, setToken, COLORS } from "../api.js";
+import { Lock, AlertTriangle, AlertCircle, LogIn, UserPlus } from "lucide-react";
+import { authApi, setToken } from "../api.js";
 
 export default function Login({ onLogin }) {
   const [configured, setConfigured] = useState(null);
@@ -39,40 +40,24 @@ export default function Login({ onLogin }) {
   }
 
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        background: COLORS.gris,
-        fontFamily: "Segoe UI, Arial, sans-serif",
-      }}
-    >
-      <div
-        style={{
-          background: COLORS.blanco,
-          borderRadius: 12,
-          padding: "40px 36px",
-          width: 340,
-          boxShadow: "0 4px 24px rgba(0,0,0,0.08)",
-          textAlign: "center",
-        }}
-      >
-        <div style={{ color: COLORS.azulOscuro, fontSize: 22, fontWeight: 700, marginBottom: 4 }}>
-          Industrias Donsoon
+    <div className="login-shell">
+      <div className="login-card">
+        <div className="login-icon">
+          <Lock size={24} />
         </div>
-        <div style={{ color: COLORS.azulMedio, fontSize: 14, marginBottom: 28 }}>
-          Sistema de Costos
-        </div>
+        <div className="login-title">Industrias Donsoon</div>
+        <div className="login-subtitle">Sistema de Costos</div>
 
         {configured === null ? (
-          <div style={{ color: "#666" }}>Cargando…</div>
+          <div className="spinner-wrap">
+            <div className="spinner" />
+          </div>
         ) : (
           <form onSubmit={handleSubmit}>
             {!configured && (
-              <div style={{ ...alertStyle(COLORS.amberFondo, COLORS.amberTexto), marginBottom: 16 }}>
-                Primer uso: crea una contraseña de acceso.
+              <div className="alert alert-warning" style={{ marginBottom: 16, textAlign: "left" }}>
+                <AlertTriangle size={16} />
+                <span>Primer uso: crea una contraseña de acceso.</span>
               </div>
             )}
             <input
@@ -80,7 +65,8 @@ export default function Login({ onLogin }) {
               placeholder="Contraseña"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              style={inputStyle}
+              className="input"
+              style={{ marginBottom: 12 }}
               autoFocus
             />
             {!configured && (
@@ -89,15 +75,18 @@ export default function Login({ onLogin }) {
                 placeholder="Confirmar contraseña"
                 value={confirm}
                 onChange={(e) => setConfirm(e.target.value)}
-                style={inputStyle}
+                className="input"
+                style={{ marginBottom: 12 }}
               />
             )}
             {error && (
-              <div style={{ ...alertStyle(COLORS.rojoFondo, COLORS.rojoTexto), marginBottom: 12 }}>
-                {error}
+              <div className="alert alert-error" style={{ marginBottom: 12, textAlign: "left" }}>
+                <AlertCircle size={16} />
+                <span>{error}</span>
               </div>
             )}
-            <button type="submit" disabled={loading} style={buttonStyle}>
+            <button type="submit" disabled={loading} className="btn btn-primary" style={{ width: "100%" }}>
+              {configured ? <LogIn size={20} /> : <UserPlus size={20} />}
               {loading ? "Procesando…" : configured ? "Entrar" : "Crear contraseña"}
             </button>
           </form>
@@ -105,37 +94,4 @@ export default function Login({ onLogin }) {
       </div>
     </div>
   );
-}
-
-const inputStyle = {
-  width: "100%",
-  padding: "10px 12px",
-  marginBottom: 12,
-  borderRadius: 8,
-  border: "1px solid #cbd5e1",
-  fontSize: 14,
-  boxSizing: "border-box",
-};
-
-const buttonStyle = {
-  width: "100%",
-  padding: "11px 0",
-  background: "#1F3864",
-  color: "#fff",
-  border: "none",
-  borderRadius: 8,
-  fontSize: 15,
-  fontWeight: 600,
-  cursor: "pointer",
-};
-
-function alertStyle(bg, color) {
-  return {
-    background: bg,
-    color,
-    borderRadius: 8,
-    padding: "8px 10px",
-    fontSize: 13,
-    textAlign: "left",
-  };
 }

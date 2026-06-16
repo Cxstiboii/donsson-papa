@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
-import { calcCostos, COP, mesLabel, COLORS } from "../api.js";
+import { CheckCircle2, TriangleAlert, TrendingDown, GitCompare, X } from "lucide-react";
+import { calcCostos, COP, mesLabel } from "../api.js";
 
 export default function Comparativo({ referencias, parametros }) {
   const [mes, setMes] = useState("");
@@ -13,39 +14,41 @@ export default function Comparativo({ referencias, parametros }) {
 
   function estado(variacion) {
     if (variacion == null) return null;
-    if (Math.abs(variacion) <= 5) return { icon: "✅", bg: COLORS.verdeClaro, color: COLORS.verdeOscuro, label: "En línea" };
-    if (Math.abs(variacion) <= 10) return { icon: "⚠️", bg: COLORS.amberFondo, color: COLORS.amberTexto, label: "Atención" };
-    return { icon: "🔻", bg: COLORS.rojoFondo, color: COLORS.rojoTexto, label: "Desviado" };
+    if (Math.abs(variacion) <= 5) return { Icon: CheckCircle2, className: "badge-success", label: "En línea" };
+    if (Math.abs(variacion) <= 10) return { Icon: TriangleAlert, className: "badge-warning", label: "Atención" };
+    return { Icon: TrendingDown, className: "badge-error", label: "Desviado" };
   }
 
   return (
     <div>
-      <div style={{ marginBottom: 14 }}>
+      <div style={{ marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}>
         <input
           type="month"
           value={mes}
           onChange={(e) => setMes(e.target.value)}
-          style={{ padding: "8px 10px", borderRadius: 8, border: "1px solid #cbd5e1" }}
+          className="input"
+          style={{ width: "auto" }}
         />
         {mes && (
-          <button onClick={() => setMes("")} style={{ marginLeft: 8, background: "none", border: "none", color: COLORS.azulMedio, cursor: "pointer" }}>
+          <button onClick={() => setMes("")} className="btn btn-ghost">
+            <X size={16} />
             Limpiar
           </button>
         )}
       </div>
 
-      <div style={{ background: "#fff", borderRadius: 10, overflow: "auto", boxShadow: "0 1px 3px rgba(0,0,0,0.06)" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
+      <div className="table-wrap">
+        <table className="data-table">
           <thead>
-            <tr style={{ background: COLORS.azulClaro, textAlign: "left" }}>
-              <th style={th}>Código</th>
-              <th style={th}>Nombre</th>
-              <th style={th}>Mes</th>
-              <th style={th}>Costo estándar</th>
-              <th style={th}>Costo real Odoo</th>
-              <th style={th}>Variación $</th>
-              <th style={th}>Variación %</th>
-              <th style={th}>Estado</th>
+            <tr>
+              <th>Código</th>
+              <th>Nombre</th>
+              <th>Mes</th>
+              <th>Costo estándar</th>
+              <th>Costo real Odoo</th>
+              <th>Variación $</th>
+              <th>Variación %</th>
+              <th>Estado</th>
             </tr>
           </thead>
           <tbody>
@@ -53,18 +56,19 @@ export default function Comparativo({ referencias, parametros }) {
               const e = estado(calc.variacion);
               const diff = calc.costoProd - calc.costoReal;
               return (
-                <tr key={ref.id} style={{ borderBottom: "1px solid #eee" }}>
-                  <td style={td}>{ref.id}</td>
-                  <td style={td}>{ref.nombre}</td>
-                  <td style={td}>{mesLabel(ref.mes)}</td>
-                  <td style={td}>{COP(calc.costoProd)}</td>
-                  <td style={td}>{COP(calc.costoReal)}</td>
-                  <td style={td}>{COP(diff)}</td>
-                  <td style={td}>{calc.variacion?.toFixed(1)}%</td>
-                  <td style={td}>
+                <tr key={ref.id}>
+                  <td>{ref.id}</td>
+                  <td>{ref.nombre}</td>
+                  <td>{mesLabel(ref.mes)}</td>
+                  <td>{COP(calc.costoProd)}</td>
+                  <td>{COP(calc.costoReal)}</td>
+                  <td>{COP(diff)}</td>
+                  <td>{calc.variacion?.toFixed(1)}%</td>
+                  <td>
                     {e && (
-                      <span style={{ background: e.bg, color: e.color, padding: "4px 10px", borderRadius: 16, fontSize: 12, fontWeight: 600 }}>
-                        {e.icon} {e.label}
+                      <span className={`badge ${e.className}`}>
+                        <e.Icon size={16} />
+                        {e.label}
                       </span>
                     )}
                   </td>
@@ -72,7 +76,16 @@ export default function Comparativo({ referencias, parametros }) {
               );
             })}
             {filas.length === 0 && (
-              <tr><td style={td} colSpan={8}>No hay referencias con costo Odoo registrado para este filtro.</td></tr>
+              <tr>
+                <td colSpan={8}>
+                  <div className="empty-state">
+                    <div className="empty-state-icon">
+                      <GitCompare size={28} />
+                    </div>
+                    <div className="empty-state-title">No hay referencias con costo Odoo registrado para este filtro</div>
+                  </div>
+                </td>
+              </tr>
             )}
           </tbody>
         </table>
@@ -80,6 +93,3 @@ export default function Comparativo({ referencias, parametros }) {
     </div>
   );
 }
-
-const th = { padding: "10px 14px", color: COLORS.azulOscuro, fontWeight: 600 };
-const td = { padding: "10px 14px" };

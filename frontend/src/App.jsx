@@ -1,4 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
+import {
+  FileBarChart,
+  Boxes,
+  Sliders,
+  GitCompare,
+  LogOut,
+  AlertCircle,
+  Factory,
+  PackageCheck,
+  TriangleAlert,
+} from "lucide-react";
 import Login from "./components/Login.jsx";
 import Referencias from "./components/Referencias.jsx";
 import Materiales from "./components/Materiales.jsx";
@@ -11,14 +22,13 @@ import {
   referenciasApi,
   parametrosApi,
   calcCostos,
-  COLORS,
 } from "./api.js";
 
 const TABS = [
-  { key: "referencias", label: "Referencias" },
-  { key: "materiales", label: "Materiales" },
-  { key: "parametros", label: "Parámetros" },
-  { key: "comparativo", label: "Comparativo Odoo" },
+  { key: "referencias", label: "Referencias", icon: FileBarChart },
+  { key: "materiales", label: "Materiales", icon: Boxes },
+  { key: "parametros", label: "Parámetros", icon: Sliders },
+  { key: "comparativo", label: "Comparativo Odoo", icon: GitCompare },
 ];
 
 export default function App() {
@@ -78,65 +88,51 @@ export default function App() {
   }
 
   return (
-    <div style={{ fontFamily: "Segoe UI, Arial, sans-serif", minHeight: "100vh", background: COLORS.gris }}>
-      <header
-        style={{
-          background: COLORS.azulOscuro,
-          color: "#fff",
-          padding: "16px 24px",
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          flexWrap: "wrap",
-          gap: 12,
-        }}
-      >
+    <div className="app-shell">
+      <header className="app-hero">
         <div>
-          <div style={{ fontSize: 18, fontWeight: 700 }}>Industrias Donsoon</div>
-          <div style={{ fontSize: 13, opacity: 0.85 }}>Sistema de Costos</div>
+          <div className="app-hero-title">
+            <Factory size={24} />
+            Industrias Donsoon
+          </div>
+          <div className="app-hero-subtitle">Sistema de Costos</div>
         </div>
-        <button onClick={handleLogout} style={logoutBtnStyle}>
+        <button onClick={handleLogout} className="btn btn-outline-light">
+          <LogOut size={20} />
           Cerrar sesión
         </button>
       </header>
 
       {kpis && (
-        <div
-          style={{
-            display: "flex",
-            gap: 12,
-            padding: "16px 24px",
-            flexWrap: "wrap",
-          }}
-        >
-          <Kpi label="Referencias" value={kpis.totalReferencias} color={COLORS.azulMedio} />
-          <Kpi label="Materiales" value={kpis.totalMateriales} color={COLORS.azulMedio} />
-          <Kpi label="Con costo Odoo" value={kpis.conOdoo} color={COLORS.verdeOscuro} bg={COLORS.verdeClaro} />
-          <Kpi label="Alertas >10%" value={kpis.alertas} color={COLORS.rojoTexto} bg={COLORS.rojoFondo} />
+        <div className="kpi-grid">
+          <Kpi icon={FileBarChart} label="Referencias" value={kpis.totalReferencias} variant="info" />
+          <Kpi icon={Boxes} label="Materiales" value={kpis.totalMateriales} variant="info" />
+          <Kpi icon={PackageCheck} label="Con costo Odoo" value={kpis.conOdoo} variant="success" />
+          <Kpi icon={TriangleAlert} label="Alertas >10%" value={kpis.alertas} variant="error" />
         </div>
       )}
 
-      <div style={{ padding: "0 24px" }}>
-        <div style={{ display: "flex", gap: 4, borderBottom: `1px solid ${COLORS.azulClaro}`, marginBottom: 20, flexWrap: "wrap" }}>
-          {TABS.map((t) => (
-            <button
-              key={t.key}
-              onClick={() => setTab(t.key)}
-              style={{
-                ...tabBtnStyle,
-                borderBottom: tab === t.key ? `3px solid ${COLORS.azulMedio}` : "3px solid transparent",
-                color: tab === t.key ? COLORS.azulOscuro : "#555",
-                fontWeight: tab === t.key ? 700 : 500,
-              }}
-            >
-              {t.label}
-            </button>
-          ))}
+      <div className="app-main">
+        <div className="tab-bar">
+          {TABS.map((t) => {
+            const Icon = t.icon;
+            return (
+              <button
+                key={t.key}
+                onClick={() => setTab(t.key)}
+                className={`tab-btn ${tab === t.key ? "active" : ""}`}
+              >
+                <Icon size={16} />
+                {t.label}
+              </button>
+            );
+          })}
         </div>
 
         {error && (
-          <div style={{ background: COLORS.rojoFondo, color: COLORS.rojoTexto, padding: 12, borderRadius: 8, marginBottom: 16 }}>
-            {error}
+          <div className="alert alert-error" style={{ marginBottom: 16 }}>
+            <AlertCircle size={16} />
+            <span>{error}</span>
           </div>
         )}
 
@@ -169,54 +165,31 @@ export default function App() {
   );
 }
 
-function Kpi({ label, value, color, bg }) {
+const KPI_VARIANTS = {
+  info: { bg: "rgba(99,102,241,.12)", color: "#4F46E5" },
+  success: { bg: "#D1FAE5", color: "#065F46" },
+  error: { bg: "#FEE2E2", color: "#991B1B" },
+};
+
+function Kpi({ icon: Icon, label, value, variant }) {
+  const v = KPI_VARIANTS[variant] || KPI_VARIANTS.info;
   return (
-    <div
-      style={{
-        background: bg || "#fff",
-        borderRadius: 10,
-        padding: "12px 18px",
-        minWidth: 130,
-        boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
-      }}
-    >
-      <div style={{ fontSize: 12, color: "#64748b" }}>{label}</div>
-      <div style={{ fontSize: 24, fontWeight: 700, color: color || "#1F3864" }}>{value}</div>
+    <div className="kpi-card">
+      <div className="kpi-icon" style={{ background: v.bg, color: v.color }}>
+        <Icon size={20} />
+      </div>
+      <div>
+        <div className="kpi-label">{label}</div>
+        <div className="kpi-value">{value}</div>
+      </div>
     </div>
   );
 }
 
 export function Spinner() {
   return (
-    <div style={{ display: "flex", justifyContent: "center", padding: 40 }}>
-      <div
-        style={{
-          width: 32,
-          height: 32,
-          border: "4px solid #D6E4F0",
-          borderTopColor: "#2E75B6",
-          borderRadius: "50%",
-          animation: "spin 0.8s linear infinite",
-        }}
-      />
-      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+    <div className="spinner-wrap">
+      <div className="spinner" />
     </div>
   );
 }
-
-const logoutBtnStyle = {
-  background: "transparent",
-  border: "1px solid rgba(255,255,255,0.5)",
-  color: "#fff",
-  padding: "8px 16px",
-  borderRadius: 8,
-  cursor: "pointer",
-};
-
-const tabBtnStyle = {
-  background: "transparent",
-  border: "none",
-  padding: "10px 16px",
-  cursor: "pointer",
-  fontSize: 14,
-};

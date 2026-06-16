@@ -1,11 +1,12 @@
 import { useState } from "react";
-import { parametrosApi, COLORS } from "../api.js";
+import { DollarSign, Cog, Percent, TrendingUp, CheckCircle2, AlertCircle, Save } from "lucide-react";
+import { parametrosApi } from "../api.js";
 
 const CARDS = [
-  { key: "tarifaMOD", label: "Tarifa MOD ($/hora)" },
-  { key: "tarifaCIF", label: "Tarifa CIF ($/hora)" },
-  { key: "pctGAV", label: "% GAV" },
-  { key: "pctMargen", label: "% Margen" },
+  { key: "tarifaMOD", label: "Tarifa MOD ($/hora)", icon: DollarSign },
+  { key: "tarifaCIF", label: "Tarifa CIF ($/hora)", icon: Cog },
+  { key: "pctGAV", label: "% GAV", icon: Percent },
+  { key: "pctMargen", label: "% Margen", icon: TrendingUp },
 ];
 
 export default function Parametros({ parametros, onSaved }) {
@@ -37,29 +38,43 @@ export default function Parametros({ parametros, onSaved }) {
 
   return (
     <div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 16, marginBottom: 20 }}>
-        {CARDS.map((c) => (
-          <div key={c.key} style={{ background: "#fff", borderRadius: 10, padding: 18, boxShadow: "0 1px 3px rgba(0,0,0,0.06)" }}>
-            <label style={{ fontSize: 13, color: "#555", display: "block", marginBottom: 8 }}>{c.label}</label>
-            <input
-              type="number"
-              step="0.01"
-              value={form[c.key]}
-              onChange={(e) => setForm({ ...form, [c.key]: e.target.value })}
-              style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid #cbd5e1", fontSize: 18, fontWeight: 700, color: COLORS.azulOscuro, boxSizing: "border-box" }}
-            />
-          </div>
-        ))}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 16, marginBottom: 24 }}>
+        {CARDS.map((c) => {
+          const Icon = c.icon;
+          return (
+            <div key={c.key} className="card">
+              <label className="field-label" style={{ marginTop: 0, display: "flex", alignItems: "center", gap: 6 }}>
+                <Icon size={16} />
+                {c.label}
+              </label>
+              <input
+                type="number"
+                step="0.01"
+                value={form[c.key]}
+                onChange={(e) => setForm({ ...form, [c.key]: e.target.value })}
+                className="input"
+                style={{ height: 48, fontSize: "var(--fs-20)", fontWeight: 700, color: "var(--color-bg)" }}
+              />
+            </div>
+          );
+        })}
       </div>
 
-      {msg && <div style={{ background: COLORS.verdeClaro, color: COLORS.verdeOscuro, padding: 10, borderRadius: 8, marginBottom: 12 }}>{msg}</div>}
-      {error && <div style={{ background: COLORS.rojoFondo, color: COLORS.rojoTexto, padding: 10, borderRadius: 8, marginBottom: 12 }}>{error}</div>}
+      {msg && (
+        <div className="alert alert-success" style={{ marginBottom: 16 }}>
+          <CheckCircle2 size={16} />
+          <span>{msg}</span>
+        </div>
+      )}
+      {error && (
+        <div className="alert alert-error" style={{ marginBottom: 16 }}>
+          <AlertCircle size={16} />
+          <span>{error}</span>
+        </div>
+      )}
 
-      <button
-        onClick={handleSave}
-        disabled={saving}
-        style={{ background: COLORS.azulOscuro, color: "#fff", border: "none", borderRadius: 8, padding: "10px 20px", cursor: "pointer", fontWeight: 600 }}
-      >
+      <button onClick={handleSave} disabled={saving} className="btn btn-primary">
+        <Save size={20} />
         {saving ? "Guardando…" : "Guardar parámetros"}
       </button>
     </div>
