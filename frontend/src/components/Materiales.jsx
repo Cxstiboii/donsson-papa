@@ -2,7 +2,9 @@ import { useState } from "react";
 import { Plus, Pencil, Trash2, Boxes, AlertCircle, X } from "lucide-react";
 import { materialesApi, COP, UNIDADES } from "../api.js";
 
-const emptyForm = { id: "", nombre: "", unidad: UNIDADES[0], costo: "", proveedor: "" };
+const OTRA_UNIDAD = "__otra__";
+
+const emptyForm = { id: "", nombre: "", unidad: UNIDADES[0], unidadCustom: "", costo: "", proveedor: "" };
 
 export default function Materiales({ materiales, reload }) {
   const [modalOpen, setModalOpen] = useState(false);
@@ -20,7 +22,15 @@ export default function Materiales({ materiales, reload }) {
 
   function openEdit(m) {
     setEditing(m);
-    setForm({ id: m.id, nombre: m.nombre, unidad: m.unidad, costo: m.costo, proveedor: m.proveedor || "" });
+    const esConocida = UNIDADES.includes(m.unidad);
+    setForm({
+      id: m.id,
+      nombre: m.nombre,
+      unidad: esConocida ? m.unidad : OTRA_UNIDAD,
+      unidadCustom: esConocida ? "" : m.unidad,
+      costo: m.costo,
+      proveedor: m.proveedor || "",
+    });
     setError("");
     setModalOpen(true);
   }
@@ -30,7 +40,8 @@ export default function Materiales({ materiales, reload }) {
     setSaving(true);
     setError("");
     try {
-      const payload = { ...form, costo: Number(form.costo) };
+      const unidad = form.unidad === OTRA_UNIDAD ? form.unidadCustom.trim() : form.unidad;
+      const payload = { id: form.id, nombre: form.nombre, unidad, costo: Number(form.costo), proveedor: form.proveedor };
       if (editing) {
         await materialesApi.update(editing.id, payload);
       } else {
@@ -142,7 +153,18 @@ export default function Materiales({ materiales, reload }) {
               <label className="field-label">Unidad</label>
               <select className="select" value={form.unidad} onChange={(e) => setForm({ ...form, unidad: e.target.value })}>
                 {UNIDADES.map((u) => <option key={u} value={u}>{u}</option>)}
+                <option value={OTRA_UNIDAD}>Otra (especificar)…</option>
               </select>
+              {form.unidad === OTRA_UNIDAD && (
+                <input
+                  className="input"
+                  style={{ marginTop: 8 }}
+                  placeholder="Escribe la unidad personalizada"
+                  value={form.unidadCustom}
+                  onChange={(e) => setForm({ ...form, unidadCustom: e.target.value })}
+                  required
+                />
+              )}
               <label className="field-label">Costo unitario</label>
               <input
                 className="input"
