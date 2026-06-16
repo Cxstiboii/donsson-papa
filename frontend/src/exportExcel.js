@@ -1,529 +1,505 @@
 import * as XLSX from "xlsx";
-import { calcCostos } from "./api.js";
+import { calcCostos, mesLabel } from "./api.js";
 
 // ---------------------------------------------------------------------------
-// Formatos numéricos
+// Colores y estilos
 // ---------------------------------------------------------------------------
-const FMT_COP = '"$"#,##0';
-const FMT_PCT = '+0.0%;-0.0%;"-"';
-const FMT_NUM2 = "0.00";
-const FMT_INT = "#,##0";
-
-const BORDER_THIN = {
-  top: { style: "thin", color: { rgb: "D1D5DB" } },
-  bottom: { style: "thin", color: { rgb: "D1D5DB" } },
-  left: { style: "thin", color: { rgb: "D1D5DB" } },
-  right: { style: "thin", color: { rgb: "D1D5DB" } },
+const COL = {
+  azulO: "1F3864", azulM: "2E75B6", azulC: "D6E4F0", verdeO: "065F46",
+  verdeC: "D1FAE5", amber: "92400E", amberF: "FEF3C7", rojo: "991B1B",
+  rojoF: "FEE2E2", morado: "7C3AED", gris: "F1F5F9", blanco: "FFFFFF", muted: "9CA3AF",
 };
+
+const bd = (c = "D1D5DB") => ({
+  top: { style: "thin", color: { rgb: c } },
+  bottom: { style: "thin", color: { rgb: c } },
+  left: { style: "thin", color: { rgb: c } },
+  right: { style: "thin", color: { rgb: c } },
+});
 
 const S = {
-  titulo: {
-    font: { bold: true, color: { rgb: "FFFFFF" }, sz: 28 },
-    fill: { fgColor: { rgb: "1F3864" } },
-    alignment: { horizontal: "center", vertical: "center" },
-  },
-  subtitulo: {
-    font: { bold: false, color: { rgb: "FFFFFF" }, sz: 16 },
-    fill: { fgColor: { rgb: "2E75B6" } },
-    alignment: { horizontal: "center", vertical: "center" },
-  },
-  meta: {
-    font: { color: { rgb: "1F3864" }, sz: 12 },
-    fill: { fgColor: { rgb: "D6E4F0" } },
-    alignment: { horizontal: "center", vertical: "center" },
-  },
-  kpiLabel: {
-    font: { sz: 9, color: { rgb: "6B7280" } },
-    alignment: { horizontal: "center", vertical: "center" },
-  },
-  headerPrimario: {
-    font: { bold: true, color: { rgb: "FFFFFF" }, sz: 11 },
-    fill: { fgColor: { rgb: "1F3864" } },
-    alignment: { horizontal: "center", vertical: "center", wrapText: true },
-    border: BORDER_THIN,
-  },
-  headerSecundario: {
-    font: { bold: true, color: { rgb: "FFFFFF" }, sz: 10 },
-    fill: { fgColor: { rgb: "2E75B6" } },
-    alignment: { horizontal: "center", vertical: "center" },
-    border: BORDER_THIN,
-  },
-  filaPar: {
-    fill: { fgColor: { rgb: "F1F5F9" } },
-    alignment: { vertical: "center" },
-    border: BORDER_THIN,
-  },
-  filaImpar: {
-    fill: { fgColor: { rgb: "FFFFFF" } },
-    alignment: { vertical: "center" },
-    border: BORDER_THIN,
-  },
-  total: {
-    font: { bold: true, color: { rgb: "FFFFFF" } },
-    fill: { fgColor: { rgb: "1F3864" } },
-    border: BORDER_THIN,
-  },
-  totalAmarillo: {
-    font: { bold: true, color: { rgb: "1F3864" } },
-    fill: { fgColor: { rgb: "FEF3C7" } },
-    border: BORDER_THIN,
-  },
-  alerta: {
-    font: { bold: true, color: { rgb: "991B1B" } },
-    fill: { fgColor: { rgb: "FEE2E2" } },
-    border: BORDER_THIN,
-  },
-  ok: {
-    font: { color: { rgb: "065F46" } },
-    fill: { fgColor: { rgb: "D1FAE5" } },
-    border: BORDER_THIN,
-  },
-  revisar: {
-    font: { color: { rgb: "92400E" } },
-    fill: { fgColor: { rgb: "FEF3C7" } },
-    border: BORDER_THIN,
-  },
-  sinDato: {
-    font: { italic: true, color: { rgb: "9CA3AF" } },
-    border: BORDER_THIN,
-  },
-  separadorFamilia: {
-    font: { bold: true, color: { rgb: "1F3864" }, sz: 10 },
-    fill: { fgColor: { rgb: "D6E4F0" } },
-    border: BORDER_THIN,
-  },
-  tituloSeccion: {
-    font: { bold: true, color: { rgb: "1F3864" }, sz: 13 },
-    fill: { fgColor: { rgb: "D6E4F0" } },
-    alignment: { horizontal: "center", vertical: "center" },
-  },
-  tituloAlerta: {
-    font: { bold: true, color: { rgb: "991B1B" } },
-    fill: { fgColor: { rgb: "FEE2E2" } },
-    alignment: { horizontal: "center", vertical: "center" },
-  },
+  titulo: { font: { bold: true, color: { rgb: COL.blanco }, sz: 28 }, fill: { fgColor: { rgb: COL.azulO } }, alignment: { horizontal: "center", vertical: "center" } },
+  subtitulo: { font: { color: { rgb: COL.blanco }, sz: 16 }, fill: { fgColor: { rgb: COL.azulM } }, alignment: { horizontal: "center", vertical: "center" } },
+  meta: { font: { bold: true, color: { rgb: COL.azulO }, sz: 12 }, fill: { fgColor: { rgb: COL.azulC } }, alignment: { horizontal: "center", vertical: "center" } },
+  metaSub: { font: { color: { rgb: "6B7280" }, sz: 10 }, fill: { fgColor: { rgb: COL.blanco } }, alignment: { horizontal: "center", vertical: "center" } },
+  hPri: { font: { bold: true, color: { rgb: COL.blanco }, sz: 11 }, fill: { fgColor: { rgb: COL.azulO } }, alignment: { horizontal: "center", vertical: "center", wrapText: true }, border: bd() },
+  hSec: { font: { bold: true, color: { rgb: COL.blanco }, sz: 10 }, fill: { fgColor: { rgb: COL.azulM } }, alignment: { horizontal: "center", vertical: "center", wrapText: true }, border: bd() },
+  par: { fill: { fgColor: { rgb: COL.gris } }, alignment: { vertical: "center" }, border: bd() },
+  impar: { fill: { fgColor: { rgb: COL.blanco } }, alignment: { vertical: "center" }, border: bd() },
+  total: { font: { bold: true, color: { rgb: COL.blanco } }, fill: { fgColor: { rgb: COL.azulO } }, border: bd() },
+  amberTot: { font: { bold: true, color: { rgb: COL.azulO } }, fill: { fgColor: { rgb: COL.amberF } }, border: bd() },
+  alerta: { font: { bold: true, color: { rgb: COL.rojo } }, fill: { fgColor: { rgb: COL.rojoF } }, border: bd() },
+  amber: { font: { color: { rgb: COL.amber } }, fill: { fgColor: { rgb: COL.amberF } }, border: bd() },
+  ok: { font: { color: { rgb: COL.verdeO } }, fill: { fgColor: { rgb: COL.verdeC } }, border: bd() },
+  muted: { font: { italic: true, color: { rgb: COL.muted } }, border: bd() },
+  sep: { font: { bold: true, color: { rgb: COL.azulO }, sz: 10 }, fill: { fgColor: { rgb: COL.azulC } }, border: bd() },
+  tituloSeccion: { font: { bold: true, color: { rgb: COL.blanco }, sz: 13 }, fill: { fgColor: { rgb: COL.azulO } }, alignment: { horizontal: "center", vertical: "center" } },
+  kpiNum: (fill) => ({ font: { bold: true, color: { rgb: COL.blanco }, sz: 20 }, fill: { fgColor: { rgb: fill } }, alignment: { horizontal: "center", vertical: "center" } }),
+  kpiLabel: (fill) => ({ font: { color: { rgb: COL.blanco }, sz: 9 }, fill: { fgColor: { rgb: fill } }, alignment: { horizontal: "center", vertical: "center" } }),
 };
 
-const KPI_FILLS = ["1F3864", "065F46", "2E75B6", "991B1B"];
+const FMT = { cop: '"$"#,##0', pct: "0.0%", hrs: '0.00" h"', int: "#,##0", num3: "0.000" };
 
 // ---------------------------------------------------------------------------
 // Helpers de hoja
 // ---------------------------------------------------------------------------
-function addr(r, c) {
-  return XLSX.utils.encode_cell({ r, c });
+function addr(c, r) {
+  return XLSX.utils.encode_cell({ c, r });
 }
 
-function setCell(ws, r, c, v, { style, z, type } = {}) {
-  const cell = { v };
-  if (type) cell.t = type;
-  else if (typeof v === "number") cell.t = "n";
-  else if (typeof v === "boolean") cell.t = "b";
-  else cell.t = "s";
-  if (z) cell.z = z;
-  if (style) cell.s = style;
-  ws[addr(r, c)] = cell;
-  return cell;
+function cell(ws, c, r, value, type, style, fmt) {
+  const o = { v: value, t: type };
+  if (style) o.s = style;
+  if (fmt) o.z = fmt;
+  ws[addr(c, r)] = o;
+  return o;
 }
 
-function merge(ws, r1, c1, r2, c2) {
+function merge(ws, c1, r1, c2, r2) {
   if (!ws["!merges"]) ws["!merges"] = [];
-  ws["!merges"].push({ s: { r: r1, c: c1 }, e: { r: r2, c: c2 } });
+  ws["!merges"].push({ s: { c: c1, r: r1 }, e: { c: c2, r: r2 } });
 }
 
-function fillRangeStyle(ws, r1, c1, r2, c2, style) {
+function fillRange(ws, c1, r1, c2, r2, style) {
   for (let r = r1; r <= r2; r++) {
     for (let c = c1; c <= c2; c++) {
-      const a = addr(r, c);
+      const a = addr(c, r);
       if (!ws[a]) ws[a] = { t: "z" };
       ws[a].s = { ...(ws[a].s || {}), ...style };
     }
   }
 }
 
-function setColWidths(ws, widths) {
+function setRow(ws, r, hpt) {
+  if (!ws["!rows"]) ws["!rows"] = [];
+  ws["!rows"][r] = { hpt };
+}
+
+function setCols(ws, widths) {
   ws["!cols"] = widths.map((w) => ({ wch: w }));
 }
 
-function setRowHeights(ws, heights) {
-  ws["!rows"] = heights.map((h) => (h ? { hpx: h } : {}));
+function setRange(ws, maxC, maxR) {
+  ws["!ref"] = XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: maxR, c: maxC } });
 }
 
-function setRange(ws, lastRow, lastCol) {
-  ws["!ref"] = `A1:${addr(lastRow, lastCol)}`;
+function avg(arr, fn) {
+  if (!arr.length) return 0;
+  return arr.reduce((s, it) => s + fn(it), 0) / arr.length;
 }
 
-function variacionLabel(v) {
-  if (v == null) return "Sin dato";
-  const sign = v > 0 ? "+" : v < 0 ? "" : "";
-  return `${sign}${v.toFixed(1)}%`;
-}
-
-function variacionStyle(v) {
-  if (v == null) return S.sinDato;
-  const abs = Math.abs(v);
+function variacionStyle(variacion, costoReal) {
+  if (!costoReal || costoReal <= 0 || variacion == null) return S.muted;
+  const abs = Math.abs(variacion);
   if (abs <= 5) return S.ok;
-  if (abs <= 10) return S.revisar;
+  if (abs <= 10) return S.amber;
   return S.alerta;
 }
+
+function ordenFamilias(calc) {
+  const orden = ["FA", "FM", "FE"];
+  const presentes = [...new Set(calc.map((it) => it.ref.familia))];
+  return [...orden.filter((f) => presentes.includes(f)), ...presentes.filter((f) => !orden.includes(f))];
+}
+
+const NOMBRE_FAMILIA = {
+  FA: "Filtros Aire (FA)",
+  FM: "Filtros Mula (FM)",
+  FE: "Filtros Especiales (FE)",
+};
 
 // ---------------------------------------------------------------------------
 // Hoja 1: Portada
 // ---------------------------------------------------------------------------
-function buildPortada(wb, referencias, parametros, periodoLabel, datos) {
+function buildPortada(wb, refs, calc, params, periodo) {
   const ws = {};
 
-  setCell(ws, 2, 0, "INDUSTRIAS DONSOON", { style: S.titulo });
-  merge(ws, 2, 0, 3, 7);
-  fillRangeStyle(ws, 2, 0, 3, 7, S.titulo);
+  cell(ws, 0, 1, "INDUSTRIAS DONSOON", "s", S.titulo);
+  merge(ws, 0, 1, 7, 2);
+  fillRange(ws, 0, 1, 7, 2, S.titulo);
+  setRow(ws, 1, 36);
 
-  setCell(ws, 4, 0, "Reporte de Costos de Producción", { style: S.subtitulo });
-  merge(ws, 4, 0, 5, 7);
-  fillRangeStyle(ws, 4, 0, 5, 7, S.subtitulo);
+  cell(ws, 0, 3, "Reporte de Costos de Producción", "s", S.subtitulo);
+  merge(ws, 0, 3, 7, 4);
+  fillRange(ws, 0, 3, 7, 4, S.subtitulo);
+  setRow(ws, 3, 28);
 
-  setCell(ws, 6, 0, `Período: ${periodoLabel || "Todos"}`, { style: S.meta });
-  merge(ws, 6, 0, 6, 7);
+  cell(ws, 0, 5, `Período: ${periodo || "Todos"}`, "s", S.meta);
+  merge(ws, 0, 5, 7, 5);
 
-  const fecha = new Date();
-  const fechaStr = `${String(fecha.getDate()).padStart(2, "0")}/${String(fecha.getMonth() + 1).padStart(2, "0")}/${fecha.getFullYear()} ${String(fecha.getHours()).padStart(2, "0")}:${String(fecha.getMinutes()).padStart(2, "0")}`;
-  setCell(ws, 7, 0, `Generado el: ${fechaStr}`, { style: S.meta });
-  merge(ws, 7, 0, 7, 7);
+  const f = new Date();
+  const fechaStr = `${String(f.getDate()).padStart(2, "0")}/${String(f.getMonth() + 1).padStart(2, "0")}/${f.getFullYear()} ${String(f.getHours()).padStart(2, "0")}:${String(f.getMinutes()).padStart(2, "0")}`;
+  cell(ws, 0, 6, `Generado: ${fechaStr}`, "s", S.metaSub);
+  merge(ws, 0, 6, 7, 6);
+  setRow(ws, 7, 16);
 
-  // KPIs
+  const totalAlertas = calc.filter((it) => it.ref.costoReal > 0 && Math.abs(it.variacion) > 10).length;
   const kpis = [
-    { label: "Total Referencias", value: datos.totalRefs, z: FMT_INT },
-    { label: "Costo Prom. Producción", value: datos.costoProdProm, z: FMT_COP },
-    { label: "Precio Venta Promedio", value: datos.precioVentaProm, z: FMT_COP },
-    { label: "Alertas (>10% variación)", value: datos.totalAlertas, z: FMT_INT },
+    { valor: refs.length, label: "Total Referencias", fill: COL.azulO, fmt: FMT.int },
+    { valor: avg(calc, (it) => it.costoProd), label: "Costo Prod. Promedio", fill: COL.verdeO, fmt: FMT.cop },
+    { valor: avg(calc, (it) => it.precioVenta), label: "Precio Venta Promedio", fill: COL.azulM, fmt: FMT.cop },
+    { valor: totalAlertas, label: "Alertas Críticas", fill: COL.rojo, fmt: FMT.int },
   ];
 
-  kpis.forEach((kpi, i) => {
+  kpis.forEach((k, i) => {
     const c1 = i * 2;
     const c2 = c1 + 1;
-    setCell(ws, 9, c1, kpi.value, { style: { ...S.kpiLabel, font: { bold: true, color: { rgb: "FFFFFF" }, sz: 14 }, fill: { fgColor: { rgb: KPI_FILLS[i] } }, alignment: { horizontal: "center", vertical: "center" } }, z: kpi.z });
-    merge(ws, 9, c1, 10, c2);
-    fillRangeStyle(ws, 9, c1, 10, c2, { fill: { fgColor: { rgb: KPI_FILLS[i] } } });
+    cell(ws, c1, 8, k.valor, "n", S.kpiNum(k.fill), k.fmt);
+    merge(ws, c1, 8, c2, 8);
+    fillRange(ws, c1, 8, c2, 8, { fill: { fgColor: { rgb: k.fill } } });
 
-    setCell(ws, 11, c1, kpi.label, { style: S.kpiLabel });
-    merge(ws, 11, c1, 11, c2);
+    cell(ws, c1, 9, k.label, "s", S.kpiLabel(k.fill));
+    merge(ws, c1, 9, c2, 9);
+    fillRange(ws, c1, 9, c2, 9, { fill: { fgColor: { rgb: k.fill } } });
   });
+  setRow(ws, 8, 40);
+  setRow(ws, 9, 18);
 
-  // Tabla de parámetros
-  const paramHeaderRow = 13;
-  ["Parámetro", "Valor", "Unidad"].forEach((h, c) => {
-    setCell(ws, paramHeaderRow, c, h, { style: S.headerPrimario });
-  });
+  cell(ws, 0, 11, "PARÁMETROS DEL SISTEMA", "s", S.hPri);
+  merge(ws, 0, 11, 3, 11);
+  fillRange(ws, 0, 11, 3, 11, S.hPri);
+  setRow(ws, 11, 20);
+
+  ["Parámetro", "Valor", "Unidad"].forEach((h, c) => cell(ws, c, 12, h, "s", S.hSec));
 
   const paramRows = [
-    ["Tarifa MOD", parametros.tarifaMOD, "COP/hora"],
-    ["Tarifa CIF", parametros.tarifaCIF, "COP/hora-máq"],
-    ["Gastos Adm. y Ventas", parametros.pctGAV, "%"],
-    ["Margen de Utilidad", parametros.pctMargen, "%"],
+    ["Tarifa MOD", params.tarifaMOD, "COP / hora", FMT.cop],
+    ["Tarifa CIF", params.tarifaCIF, "COP / hora-máq.", FMT.cop],
+    ["Gastos Adm. y Ventas", params.pctGAV / 100, "% s/costo", FMT.pct],
+    ["Margen de Utilidad", params.pctMargen / 100, "% s/total", FMT.pct],
   ];
 
   paramRows.forEach((row, i) => {
-    const r = paramHeaderRow + 1 + i;
-    const style = i % 2 === 0 ? S.filaImpar : S.filaPar;
-    setCell(ws, r, 0, row[0], { style });
-    setCell(ws, r, 1, row[1], { style, z: FMT_NUM2 });
-    setCell(ws, r, 2, row[2], { style });
+    const r = 13 + i;
+    const style = i % 2 === 0 ? S.impar : S.par;
+    cell(ws, 0, r, row[0], "s", style);
+    cell(ws, 1, r, row[1], "n", style, row[3]);
+    cell(ws, 2, r, row[2], "s", style);
   });
 
-  setColWidths(ws, [16, 16, 16, 16, 16, 16, 16, 16]);
-  setRange(ws, paramHeaderRow + paramRows.length, 7);
-  XLSX.utils.book_append_sheet(wb, ws, "Portada");
+  setCols(ws, [32, 20, 20, 14, 14, 14, 14, 14]);
+  setRange(ws, 7, 16);
+  XLSX.utils.book_append_sheet(wb, ws, "🏢 Portada");
 }
 
 // ---------------------------------------------------------------------------
 // Hoja 2: Resumen Ejecutivo
 // ---------------------------------------------------------------------------
-function buildResumenEjecutivo(wb, calculados) {
+function buildResumen(wb, refs, calc) {
   const ws = {};
 
-  setCell(ws, 1, 0, "ANÁLISIS POR FAMILIA DE PRODUCTO", { style: S.tituloSeccion });
-  merge(ws, 1, 0, 1, 9);
-  fillRangeStyle(ws, 1, 0, 1, 9, S.tituloSeccion);
+  cell(ws, 0, 1, "ANÁLISIS POR FAMILIA DE PRODUCTO", "s", S.hPri);
+  merge(ws, 0, 1, 9, 1);
+  fillRange(ws, 0, 1, 9, 1, S.hPri);
+  setRow(ws, 1, 22);
 
-  const headers1 = [
-    "Familia", "Cant. Refs", "MPD Promedio", "MOD Promedio", "CIF Promedio",
-    "Costo Prod. Prom", "Precio Venta Prom", "Margen Bruto Prom", "% Materiales", "Alertas",
-  ];
-  headers1.forEach((h, c) => setCell(ws, 2, c, h, { style: S.headerPrimario }));
+  const headers1 = ["Familia", "Refs", "MPD Prom.", "MOD Prom.", "CIF Prom.", "Costo Prod.", "Costo Total", "Precio Venta", "Margen Bruto", "% Materiales"];
+  headers1.forEach((h, c) => cell(ws, c, 2, h, "s", S.hSec));
+  setRow(ws, 2, 30);
 
-  const familiasOrden = ["FA", "FM", "FE"];
-  const presentes = [...new Set(calculados.map((c) => c.ref.familia))];
-  const familias = [...familiasOrden.filter((f) => presentes.includes(f)), ...presentes.filter((f) => !familiasOrden.includes(f))];
+  const fillFamilia = { FA: COL.azulC, FM: COL.verdeC, FE: COL.amberF };
+  const familias = ordenFamilias(calc);
 
-  const statsPorFamilia = familias.map((fam) => {
-    const items = calculados.filter((c) => c.ref.familia === fam);
-    const n = items.length || 1;
-    const sum = (fn) => items.reduce((s, it) => s + fn(it), 0);
-    const mpdProm = sum((it) => it.c.mpd) / n;
-    const modProm = sum((it) => it.c.mod) / n;
-    const cifProm = sum((it) => it.c.cif) / n;
-    const costoProdProm = sum((it) => it.c.costoProd) / n;
-    const precioVentaProm = sum((it) => it.c.precioVenta) / n;
-    const margenProm = sum((it) => it.c.margenBruto) / n;
-    const pctMateriales = costoProdProm > 0 ? mpdProm / costoProdProm : 0;
-    const alertas = items.filter((it) => it.c.variacion != null && Math.abs(it.c.variacion) > 10).length;
-    return { fam, n: items.length, mpdProm, modProm, cifProm, costoProdProm, precioVentaProm, margenProm, pctMateriales, alertas };
-  });
-
-  statsPorFamilia.forEach((s, i) => {
+  familias.forEach((fam, i) => {
     const r = 3 + i;
-    const style = i % 2 === 0 ? S.filaImpar : S.filaPar;
-    setCell(ws, r, 0, s.fam, { style });
-    setCell(ws, r, 1, s.n, { style, z: FMT_INT });
-    setCell(ws, r, 2, s.mpdProm, { style, z: FMT_COP });
-    setCell(ws, r, 3, s.modProm, { style, z: FMT_COP });
-    setCell(ws, r, 4, s.cifProm, { style, z: FMT_COP });
-    setCell(ws, r, 5, s.costoProdProm, { style, z: FMT_COP });
-    setCell(ws, r, 6, s.precioVentaProm, { style, z: FMT_COP });
-    setCell(ws, r, 7, s.margenProm, { style, z: FMT_COP });
-    setCell(ws, r, 8, s.pctMateriales, { style, z: "0.0%" });
-    setCell(ws, r, 9, s.alertas, { style, z: FMT_INT });
+    const items = calc.filter((it) => it.ref.familia === fam);
+    const mpdProm = avg(items, (it) => it.mpd);
+    const modProm = avg(items, (it) => it.mod);
+    const cifProm = avg(items, (it) => it.cif);
+    const costoProdProm = avg(items, (it) => it.costoProd);
+    const costoTotalProm = avg(items, (it) => it.costoTotal);
+    const precioVentaProm = avg(items, (it) => it.precioVenta);
+    const margenProm = avg(items, (it) => it.margenBruto);
+    const pctMateriales = costoProdProm > 0 ? mpdProm / costoProdProm : 0;
+    const style = { fill: { fgColor: { rgb: fillFamilia[fam] || COL.gris } }, alignment: { vertical: "center" }, border: bd() };
+
+    cell(ws, 0, r, NOMBRE_FAMILIA[fam] || fam, "s", style);
+    cell(ws, 1, r, items.length, "n", style, FMT.int);
+    cell(ws, 2, r, mpdProm, "n", style, FMT.cop);
+    cell(ws, 3, r, modProm, "n", style, FMT.cop);
+    cell(ws, 4, r, cifProm, "n", style, FMT.cop);
+    cell(ws, 5, r, costoProdProm, "n", style, FMT.cop);
+    cell(ws, 6, r, costoTotalProm, "n", style, FMT.cop);
+    cell(ws, 7, r, precioVentaProm, "n", style, FMT.cop);
+    cell(ws, 8, r, margenProm, "n", style, FMT.cop);
+    cell(ws, 9, r, pctMateriales, "n", style, FMT.pct);
   });
 
-  const totalRow = 3 + statsPorFamilia.length;
-  const totalN = calculados.length || 1;
-  const tsum = (fn) => calculados.reduce((s, it) => s + fn(it), 0);
-  const tMpd = tsum((it) => it.c.mpd) / totalN;
-  const tMod = tsum((it) => it.c.mod) / totalN;
-  const tCif = tsum((it) => it.c.cif) / totalN;
-  const tCostoProd = tsum((it) => it.c.costoProd) / totalN;
-  const tPrecio = tsum((it) => it.c.precioVenta) / totalN;
-  const tMargen = tsum((it) => it.c.margenBruto) / totalN;
-  const tPctMat = tCostoProd > 0 ? tMpd / tCostoProd : 0;
-  const tAlertas = calculados.filter((it) => it.c.variacion != null && Math.abs(it.c.variacion) > 10).length;
+  const totalRow = 3 + familias.length;
+  const mpdTot = avg(calc, (it) => it.mpd);
+  const costoProdTot = avg(calc, (it) => it.costoProd);
+  cell(ws, 0, totalRow, "TOTALES / PROMEDIOS", "s", S.amberTot);
+  cell(ws, 1, totalRow, calc.length, "n", S.amberTot, FMT.int);
+  cell(ws, 2, totalRow, mpdTot, "n", S.amberTot, FMT.cop);
+  cell(ws, 3, totalRow, avg(calc, (it) => it.mod), "n", S.amberTot, FMT.cop);
+  cell(ws, 4, totalRow, avg(calc, (it) => it.cif), "n", S.amberTot, FMT.cop);
+  cell(ws, 5, totalRow, costoProdTot, "n", S.amberTot, FMT.cop);
+  cell(ws, 6, totalRow, avg(calc, (it) => it.costoTotal), "n", S.amberTot, FMT.cop);
+  cell(ws, 7, totalRow, avg(calc, (it) => it.precioVenta), "n", S.amberTot, FMT.cop);
+  cell(ws, 8, totalRow, avg(calc, (it) => it.margenBruto), "n", S.amberTot, FMT.cop);
+  cell(ws, 9, totalRow, costoProdTot > 0 ? mpdTot / costoProdTot : 0, "n", S.amberTot, FMT.pct);
 
-  setCell(ws, totalRow, 0, "TOTAL / PROMEDIO GENERAL", { style: S.totalAmarillo });
-  setCell(ws, totalRow, 1, calculados.length, { style: S.totalAmarillo, z: FMT_INT });
-  setCell(ws, totalRow, 2, tMpd, { style: S.totalAmarillo, z: FMT_COP });
-  setCell(ws, totalRow, 3, tMod, { style: S.totalAmarillo, z: FMT_COP });
-  setCell(ws, totalRow, 4, tCif, { style: S.totalAmarillo, z: FMT_COP });
-  setCell(ws, totalRow, 5, tCostoProd, { style: S.totalAmarillo, z: FMT_COP });
-  setCell(ws, totalRow, 6, tPrecio, { style: S.totalAmarillo, z: FMT_COP });
-  setCell(ws, totalRow, 7, tMargen, { style: S.totalAmarillo, z: FMT_COP });
-  setCell(ws, totalRow, 8, tPctMat, { style: S.totalAmarillo, z: "0.0%" });
-  setCell(ws, totalRow, 9, tAlertas, { style: S.totalAmarillo, z: FMT_INT });
+  // Top 5 mayor costo de producción
+  const topTitleRow = totalRow + 2;
+  cell(ws, 0, topTitleRow, "TOP 5 — MAYOR COSTO DE PRODUCCIÓN", "s", S.hPri);
+  merge(ws, 0, topTitleRow, 5, topTitleRow);
+  fillRange(ws, 0, topTitleRow, 5, topTitleRow, S.hPri);
 
-  // Bloque de alertas
-  const alertasRowTitulo = totalRow + 3;
-  setCell(ws, alertasRowTitulo, 0, "REFERENCIAS CON VARIACIÓN CRÍTICA (>10%)", { style: S.tituloAlerta });
-  merge(ws, alertasRowTitulo, 0, alertasRowTitulo, 6);
-  fillRangeStyle(ws, alertasRowTitulo, 0, alertasRowTitulo, 6, S.tituloAlerta);
+  const topHeaderRow = topTitleRow + 1;
+  ["Código", "Nombre", "Familia", "Costo Prod.", "Precio Venta", "Margen Bruto"].forEach((h, c) => cell(ws, c, topHeaderRow, h, "s", S.hSec));
 
-  const alertasHeaderRow = alertasRowTitulo + 1;
-  const headers2 = ["Código", "Nombre", "Familia", "Costo Estándar", "Costo Real (Odoo)", "Diferencia COP", "Variación %"];
-  headers2.forEach((h, c) => setCell(ws, alertasHeaderRow, c, h, { style: S.headerPrimario }));
-
-  const alertas = calculados
-    .filter((it) => it.ref.costoReal > 0 && it.c.variacion != null && Math.abs(it.c.variacion) > 10)
-    .sort((a, b) => Math.abs(b.c.variacion) - Math.abs(a.c.variacion));
-
-  alertas.forEach((it, i) => {
-    const r = alertasHeaderRow + 1 + i;
-    const baseStyle = i % 2 === 0 ? S.filaImpar : S.filaPar;
-    const diferencia = it.c.costoProd - it.ref.costoReal;
-    setCell(ws, r, 0, it.ref.id, { style: baseStyle });
-    setCell(ws, r, 1, it.ref.nombre, { style: baseStyle });
-    setCell(ws, r, 2, it.ref.familia, { style: baseStyle });
-    setCell(ws, r, 3, it.c.costoProd, { style: baseStyle, z: FMT_COP });
-    setCell(ws, r, 4, it.ref.costoReal, { style: baseStyle, z: FMT_COP });
-    setCell(ws, r, 5, diferencia, { style: baseStyle, z: FMT_COP });
-    const varStyle = it.c.variacion < 0 ? S.alerta : S.ok;
-    setCell(ws, r, 6, it.c.variacion / 100, { style: varStyle, z: FMT_PCT });
+  const top5 = [...calc].sort((a, b) => b.costoProd - a.costoProd).slice(0, 5);
+  top5.forEach((it, i) => {
+    const r = topHeaderRow + 1 + i;
+    const style = i % 2 === 0 ? S.impar : S.par;
+    cell(ws, 0, r, it.ref.id, "s", style);
+    cell(ws, 1, r, it.ref.nombre, "s", style);
+    cell(ws, 2, r, it.ref.familia, "s", style);
+    cell(ws, 3, r, it.costoProd, "n", style, FMT.cop);
+    cell(ws, 4, r, it.precioVenta, "n", style, FMT.cop);
+    cell(ws, 5, r, it.margenBruto, "n", style, FMT.cop);
   });
 
-  setColWidths(ws, [12, 28, 10, 18, 18, 18, 14]);
-  setRange(ws, alertasHeaderRow + alertas.length + 1, 9);
-  XLSX.utils.book_append_sheet(wb, ws, "Resumen Ejecutivo");
+  // Comparativo Odoo
+  const cmpTitleRow = topHeaderRow + top5.length + 2;
+  cell(ws, 0, cmpTitleRow, "COMPARATIVO ODOO", "s", S.hPri);
+  merge(ws, 0, cmpTitleRow, 6, cmpTitleRow);
+  fillRange(ws, 0, cmpTitleRow, 6, cmpTitleRow, S.hPri);
+
+  const cmpHeaderRow = cmpTitleRow + 1;
+  ["Código", "Nombre", "Familia", "Costo Estándar", "Costo Real", "Diferencia", "Variación %"].forEach((h, c) => cell(ws, c, cmpHeaderRow, h, "s", S.hSec));
+
+  const cmpItems = calc
+    .filter((it) => it.ref.costoReal > 0)
+    .sort((a, b) => Math.abs(b.variacion) - Math.abs(a.variacion));
+
+  cmpItems.forEach((it, i) => {
+    const r = cmpHeaderRow + 1 + i;
+    const baseStyle = i % 2 === 0 ? S.impar : S.par;
+    const diferencia = it.costoProd - it.ref.costoReal;
+    cell(ws, 0, r, it.ref.id, "s", baseStyle);
+    cell(ws, 1, r, it.ref.nombre, "s", baseStyle);
+    cell(ws, 2, r, it.ref.familia, "s", baseStyle);
+    cell(ws, 3, r, it.costoProd, "n", baseStyle, FMT.cop);
+    cell(ws, 4, r, it.ref.costoReal, "n", baseStyle, FMT.cop);
+    cell(ws, 5, r, diferencia, "n", baseStyle, FMT.cop);
+    cell(ws, 6, r, it.variacion / 100, "n", variacionStyle(it.variacion, it.ref.costoReal), FMT.pct);
+  });
+
+  const lastRow = cmpHeaderRow + cmpItems.length;
+  setCols(ws, [12, 28, 10, 18, 18, 18, 18, 18, 18, 14]);
+  setRange(ws, 9, lastRow);
+  ws["!freeze"] = { xSplit: 0, ySplit: 3, topLeftCell: "A4", activePane: "bottomLeft", state: "frozen" };
+  XLSX.utils.book_append_sheet(wb, ws, "📊 Resumen Ejecutivo");
 }
 
 // ---------------------------------------------------------------------------
 // Hoja 3: Detalle de Referencias
 // ---------------------------------------------------------------------------
-function buildDetalle(wb, calculados, periodoLabel) {
+function buildDetalle(wb, refs, calc, periodo) {
   const ws = {};
-  const heights = [];
 
-  setCell(ws, 0, 0, "INDUSTRIAS DONSOON", { style: S.titulo });
-  merge(ws, 0, 0, 0, 11);
-  fillRangeStyle(ws, 0, 0, 0, 11, S.titulo);
-  setCell(ws, 1, 0, `Detalle de Referencias — Período: ${periodoLabel || "Todos"}`, { style: S.subtitulo });
-  merge(ws, 1, 0, 1, 11);
-  fillRangeStyle(ws, 1, 0, 1, 11, S.subtitulo);
-  heights[0] = 30;
-  heights[1] = 22;
+  cell(ws, 0, 0, "DETALLE DE COSTOS — TODAS LAS REFERENCIAS", "s", S.hPri);
+  merge(ws, 0, 0, 11, 0);
+  fillRange(ws, 0, 0, 11, 0, S.hPri);
+  setRow(ws, 0, 24);
 
-  // Headers nivel 1 (fila 3 -> índice 3, con fila 4 -> índice 4 de nivel 2)
-  const lvl1Row = 3;
-  const lvl2Row = 4;
+  cell(ws, 0, 1, `Período: ${periodo || "Todos"} | ${refs.length} referencias`, "s", S.meta);
+  merge(ws, 0, 1, 11, 1);
 
-  setCell(ws, lvl1Row, 0, "Identificación", { style: S.headerPrimario });
-  merge(ws, lvl1Row, 0, lvl1Row, 3);
-  setCell(ws, lvl1Row, 4, "Estructura de Costos Unitarios (COP)", { style: S.headerPrimario });
-  merge(ws, lvl1Row, 4, lvl1Row, 8);
-  setCell(ws, lvl1Row, 9, "Precio", { style: S.headerPrimario });
-  setCell(ws, lvl1Row, 10, "Comparativo Odoo", { style: S.headerPrimario });
-  merge(ws, lvl1Row, 10, lvl1Row, 11);
-  fillRangeStyle(ws, lvl1Row, 0, lvl1Row, 11, S.headerPrimario);
-
-  const headers2 = [
-    "Código", "Nombre", "Familia", "Mes", "MPD", "MOD", "CIF",
-    "Costo Prod", "Costo Total", "Precio Venta", "Costo Real", "Variación %",
+  const grupos = [
+    { label: "IDENTIFICACIÓN", c1: 0, c2: 3, fill: COL.azulO },
+    { label: "ESTRUCTURA DE COSTO (COP)", c1: 4, c2: 6, fill: COL.azulM },
+    { label: "PRECIO Y RENTABILIDAD", c1: 7, c2: 9, fill: COL.verdeO },
+    { label: "COMPARATIVO ODOO", c1: 10, c2: 11, fill: COL.morado },
   ];
-  headers2.forEach((h, c) => setCell(ws, lvl2Row, c, h, { style: S.headerSecundario }));
+  grupos.forEach((g) => {
+    const style = { font: { bold: true, color: { rgb: COL.blanco }, sz: 11 }, fill: { fgColor: { rgb: g.fill } }, alignment: { horizontal: "center", vertical: "center" }, border: bd() };
+    cell(ws, g.c1, 2, g.label, "s", style);
+    merge(ws, g.c1, 2, g.c2, 2);
+    fillRange(ws, g.c1, 2, g.c2, 2, style);
+  });
 
-  const familiasOrden = ["FA", "FM", "FE"];
-  const presentes = [...new Set(calculados.map((c) => c.ref.familia))];
-  const familias = [...familiasOrden.filter((f) => presentes.includes(f)), ...presentes.filter((f) => !familiasOrden.includes(f))];
+  const headers2 = ["Código", "Nombre", "Familia", "Mes", "MPD", "MOD", "CIF", "Costo Prod.", "Costo Total", "Precio Venta", "Costo Real", "Variación %"];
+  headers2.forEach((h, c) => cell(ws, c, 3, h, "s", S.hSec));
+  setRow(ws, 3, 28);
 
-  let r = lvl2Row + 1;
-  const moneyCols = [4, 5, 6, 7, 8, 9, 10];
+  const familias = ordenFamilias(calc);
+  let r = 4;
 
   familias.forEach((fam) => {
-    setCell(ws, r, 0, fam, { style: S.separadorFamilia });
-    merge(ws, r, 0, r, 11);
-    fillRangeStyle(ws, r, 0, r, 11, S.separadorFamilia);
-    heights[r] = 14;
+    cell(ws, 0, r, `── FAMILIA: ${NOMBRE_FAMILIA[fam] || fam} ──`, "s", S.sep);
+    merge(ws, 0, r, 11, r);
+    fillRange(ws, 0, r, 11, r, S.sep);
+    setRow(ws, r, 16);
     r++;
 
-    const items = calculados.filter((it) => it.ref.familia === fam);
+    const items = calc.filter((it) => it.ref.familia === fam);
     items.forEach((it, i) => {
-      const style = i % 2 === 0 ? S.filaImpar : S.filaPar;
-      setCell(ws, r, 0, it.ref.id, { style });
-      setCell(ws, r, 1, it.ref.nombre, { style });
-      setCell(ws, r, 2, it.ref.familia, { style });
-      setCell(ws, r, 3, it.ref.mes, { style });
-      setCell(ws, r, 4, it.c.mpd, { style, z: FMT_COP });
-      setCell(ws, r, 5, it.c.mod, { style, z: FMT_COP });
-      setCell(ws, r, 6, it.c.cif, { style, z: FMT_COP });
-      setCell(ws, r, 7, it.c.costoProd, { style, z: FMT_COP });
-      setCell(ws, r, 8, it.c.costoTotal, { style, z: FMT_COP });
-      setCell(ws, r, 9, it.c.precioVenta, { style, z: FMT_COP });
-      setCell(ws, r, 10, it.ref.costoReal || null, { style, z: FMT_COP });
+      const style = i % 2 === 0 ? S.impar : S.par;
+      cell(ws, 0, r, it.ref.id, "s", style);
+      cell(ws, 1, r, it.ref.nombre, "s", style);
+      cell(ws, 2, r, it.ref.familia, "s", style);
+      cell(ws, 3, r, mesLabel(it.ref.mes), "s", style);
+      cell(ws, 4, r, it.mpd, "n", style, FMT.cop);
+      cell(ws, 5, r, it.mod, "n", style, FMT.cop);
+      cell(ws, 6, r, it.cif, "n", style, FMT.cop);
+      cell(ws, 7, r, it.costoProd, "n", style, FMT.cop);
+      cell(ws, 8, r, it.costoTotal, "n", style, FMT.cop);
+      cell(ws, 9, r, it.precioVenta, "n", style, FMT.cop);
 
-      const vStyle = variacionStyle(it.c.variacion);
-      if (it.c.variacion == null) {
-        setCell(ws, r, 11, "Sin dato", { style: vStyle });
+      if (it.ref.costoReal > 0) {
+        cell(ws, 10, r, it.ref.costoReal, "n", style, FMT.cop);
+        cell(ws, 11, r, it.variacion / 100, "n", variacionStyle(it.variacion, it.ref.costoReal), FMT.pct);
       } else {
-        setCell(ws, r, 11, variacionLabel(it.c.variacion), { style: vStyle });
+        cell(ws, 10, r, "-", "s", S.muted);
+        cell(ws, 11, r, "Sin dato", "s", S.muted);
       }
-      heights[r] = 18;
       r++;
     });
   });
 
   const totalRow = r;
-  const n = calculados.length || 1;
-  const prom = (fn) => calculados.reduce((s, it) => s + fn(it), 0) / n;
+  cell(ws, 0, totalRow, `PROMEDIOS GENERALES (${calc.length} refs)`, "s", S.total);
+  merge(ws, 0, totalRow, 3, totalRow);
+  fillRange(ws, 0, totalRow, 3, totalRow, S.total);
+  cell(ws, 4, totalRow, avg(calc, (it) => it.mpd), "n", S.total, FMT.cop);
+  cell(ws, 5, totalRow, avg(calc, (it) => it.mod), "n", S.total, FMT.cop);
+  cell(ws, 6, totalRow, avg(calc, (it) => it.cif), "n", S.total, FMT.cop);
+  cell(ws, 7, totalRow, avg(calc, (it) => it.costoProd), "n", S.total, FMT.cop);
+  cell(ws, 8, totalRow, avg(calc, (it) => it.costoTotal), "n", S.total, FMT.cop);
+  cell(ws, 9, totalRow, avg(calc, (it) => it.precioVenta), "n", S.total, FMT.cop);
 
-  setCell(ws, totalRow, 0, "TOTALES / PROMEDIOS", { style: S.total });
-  merge(ws, totalRow, 0, totalRow, 3);
-  fillRangeStyle(ws, totalRow, 0, totalRow, 3, S.total);
-  setCell(ws, totalRow, 4, prom((it) => it.c.mpd), { style: S.total, z: FMT_COP });
-  setCell(ws, totalRow, 5, prom((it) => it.c.mod), { style: S.total, z: FMT_COP });
-  setCell(ws, totalRow, 6, prom((it) => it.c.cif), { style: S.total, z: FMT_COP });
-  setCell(ws, totalRow, 7, prom((it) => it.c.costoProd), { style: S.total, z: FMT_COP });
-  setCell(ws, totalRow, 8, prom((it) => it.c.costoTotal), { style: S.total, z: FMT_COP });
-  setCell(ws, totalRow, 9, prom((it) => it.c.precioVenta), { style: S.total, z: FMT_COP });
-  setCell(ws, totalRow, 10, `${calculados.length} refs`, { style: S.total });
-  setCell(ws, totalRow, 11, "", { style: S.total });
+  const conReal = calc.filter((it) => it.ref.costoReal > 0);
+  cell(ws, 10, totalRow, "", "s", S.total);
+  if (conReal.length) {
+    cell(ws, 11, totalRow, avg(conReal, (it) => it.variacion) / 100, "n", S.total, FMT.pct);
+  } else {
+    cell(ws, 11, totalRow, "Sin dato", "s", S.total);
+  }
 
-  setColWidths(ws, [12, 28, 10, 10, 18, 16, 16, 18, 18, 18, 18, 14]);
-  setRowHeights(ws, heights);
-  setRange(ws, totalRow, 11);
-  ws["!freeze"] = { xSplit: 0, ySplit: 5, topLeftCell: "A6", activePane: "bottomLeft", state: "frozen" };
-  XLSX.utils.book_append_sheet(wb, ws, "Detalle de Referencias");
+  setCols(ws, [12, 26, 10, 10, 18, 16, 16, 18, 18, 18, 18, 14]);
+  setRange(ws, 11, totalRow);
+  ws["!freeze"] = { xSplit: 2, ySplit: 4, topLeftCell: "C5", activePane: "bottomRight", state: "frozen" };
+  XLSX.utils.book_append_sheet(wb, ws, "📋 Detalle de Referencias");
 }
 
 // ---------------------------------------------------------------------------
-// Hoja 4: Consumos por Referencia
+// Hoja 4: Materiales
 // ---------------------------------------------------------------------------
-function buildConsumos(wb, calculados) {
+function buildMateriales(wb, refs, calc) {
   const ws = {};
 
-  setCell(ws, 0, 0, "INDUSTRIAS DONSOON — Consumos de Materiales por Referencia", { style: S.titulo });
-  merge(ws, 0, 0, 0, 9);
-  fillRangeStyle(ws, 0, 0, 0, 9, S.titulo);
+  cell(ws, 0, 0, "MAESTRO DE MATERIALES Y CONSUMOS", "s", S.hPri);
+  merge(ws, 0, 0, 9, 0);
+  fillRange(ws, 0, 0, 9, 0, S.hPri);
+  setRow(ws, 0, 22);
 
-  const headerRow = 2;
-  const headers = [
-    "Ref. Código", "Ref. Nombre", "Familia", "Material Código", "Material Nombre",
-    "Unidad", "Cantidad/Unid", "Costo Unit. (COP)", "Costo Material (COP)", "% del MPD Total",
-  ];
-  headers.forEach((h, c) => setCell(ws, headerRow, c, h, { style: S.headerPrimario }));
+  // Sección A: materiales únicos
+  const matMap = new Map();
+  calc.forEach((it) => {
+    (it.ref.consumos || []).forEach((cons) => {
+      const m = cons.material;
+      if (!m) return;
+      if (!matMap.has(m.id)) {
+        matMap.set(m.id, { id: m.id, nombre: m.nombre, unidad: m.unidad, costo: m.costo, refs: new Set(), cantidades: [] });
+      }
+      const entry = matMap.get(m.id);
+      entry.refs.add(it.ref.id);
+      entry.cantidades.push(cons.cantidad || 0);
+    });
+  });
+  const materiales = [...matMap.values()].sort((a, b) => String(a.id).localeCompare(String(b.id)));
 
-  const ordenados = [...calculados].sort((a, b) => {
+  ["Código", "Nombre", "Unidad", "Costo Unit.", "En N Refs", "Consumo Prom/Unid"].forEach((h, c) => cell(ws, c, 2, h, "s", S.hSec));
+
+  materiales.forEach((m, i) => {
+    const r = 3 + i;
+    const style = i % 2 === 0 ? S.impar : S.par;
+    const cantProm = m.cantidades.length ? m.cantidades.reduce((s, v) => s + v, 0) / m.cantidades.length : 0;
+    cell(ws, 0, r, m.id, "s", style);
+    cell(ws, 1, r, m.nombre, "s", style);
+    cell(ws, 2, r, m.unidad, "s", style);
+    cell(ws, 3, r, m.costo, "n", style, FMT.cop);
+    cell(ws, 4, r, m.refs.size, "n", style, FMT.int);
+    cell(ws, 5, r, cantProm, "n", style, FMT.num3);
+  });
+
+  // Sección B: consumos detallados
+  const nMatRow = 3 + materiales.length;
+  const titleRow = nMatRow + 2;
+  cell(ws, 0, titleRow, "CONSUMOS DETALLADOS POR REFERENCIA", "s", S.hPri);
+  merge(ws, 0, titleRow, 9, titleRow);
+  fillRange(ws, 0, titleRow, 9, titleRow, S.hPri);
+
+  const headerRow = titleRow + 1;
+  ["Ref.Código", "Ref.Nombre", "Familia", "Mat.Código", "Material", "Unidad", "Cant./Unid", "Costo Unit.", "Costo Material", "% del MPD"].forEach((h, c) => cell(ws, c, headerRow, h, "s", S.hSec));
+  setRow(ws, headerRow, 28);
+
+  const ordenadas = [...calc].sort((a, b) => {
     if (a.ref.familia !== b.ref.familia) return a.ref.familia.localeCompare(b.ref.familia);
     return String(a.ref.id).localeCompare(String(b.ref.id));
   });
 
   let r = headerRow + 1;
-  ordenados.forEach((it, idx) => {
+  ordenadas.forEach((it, idx) => {
     const consumos = [...(it.ref.consumos || [])].sort((a, b) => {
-      const nA = a.material?.nombre || "";
-      const nB = b.material?.nombre || "";
-      return nA.localeCompare(nB);
+      const idA = a.material?.id ?? "";
+      const idB = b.material?.id ?? "";
+      return String(idA).localeCompare(String(idB));
     });
-
-    const baseFill = idx % 2 === 0 ? "FFFFFF" : "F8FAFC";
-    const rowStyle = { fill: { fgColor: { rgb: baseFill } }, alignment: { vertical: "center" }, border: BORDER_THIN };
+    const fillColor = idx % 2 === 0 ? COL.blanco : "F8FAFC";
+    const rowStyle = { fill: { fgColor: { rgb: fillColor } }, alignment: { vertical: "center" }, border: bd() };
 
     consumos.forEach((cons) => {
       const m = cons.material || {};
       const costoMaterial = (m.costo || 0) * (cons.cantidad || 0);
-      const pctMpd = it.c.mpd > 0 ? costoMaterial / it.c.mpd : 0;
+      const pctMpd = it.mpd > 0 ? costoMaterial / it.mpd : 0;
 
-      setCell(ws, r, 0, it.ref.id, { style: rowStyle });
-      setCell(ws, r, 1, it.ref.nombre, { style: rowStyle });
-      setCell(ws, r, 2, it.ref.familia, { style: rowStyle });
-      setCell(ws, r, 3, m.id, { style: rowStyle });
-      setCell(ws, r, 4, m.nombre, { style: rowStyle });
-      setCell(ws, r, 5, m.unidad, { style: rowStyle });
-      setCell(ws, r, 6, cons.cantidad || 0, { style: rowStyle, z: FMT_NUM2 });
-      setCell(ws, r, 7, m.costo || 0, { style: rowStyle, z: FMT_COP });
-      setCell(ws, r, 8, costoMaterial, { style: rowStyle, z: FMT_COP });
-      setCell(ws, r, 9, pctMpd, { style: rowStyle, z: "0.0%" });
+      cell(ws, 0, r, it.ref.id, "s", rowStyle);
+      cell(ws, 1, r, it.ref.nombre, "s", rowStyle);
+      cell(ws, 2, r, it.ref.familia, "s", rowStyle);
+      cell(ws, 3, r, m.id, "s", rowStyle);
+      cell(ws, 4, r, m.nombre, "s", rowStyle);
+      cell(ws, 5, r, m.unidad, "s", rowStyle);
+      cell(ws, 6, r, cons.cantidad || 0, "n", rowStyle, FMT.num3);
+      cell(ws, 7, r, m.costo || 0, "n", rowStyle, FMT.cop);
+      cell(ws, 8, r, costoMaterial, "n", rowStyle, FMT.cop);
+      cell(ws, 9, r, pctMpd, "n", rowStyle, FMT.pct);
       r++;
     });
 
-    setCell(ws, r, 0, `TOTAL MPD — ${it.ref.id}`, { style: S.separadorFamilia });
-    merge(ws, r, 0, r, 4);
-    fillRangeStyle(ws, r, 0, r, 4, S.separadorFamilia);
-    setCell(ws, r, 8, it.c.mpd, { style: S.separadorFamilia, z: FMT_COP });
+    cell(ws, 0, r, `Subtotal MPD — ${it.ref.id}`, "s", S.sep);
+    merge(ws, 0, r, 5, r);
+    fillRange(ws, 0, r, 5, r, S.sep);
+    cell(ws, 8, r, it.mpd, "n", S.sep, FMT.cop);
+    cell(ws, 9, r, 1, "n", S.sep, FMT.pct);
     r++;
   });
 
-  setColWidths(ws, [12, 28, 10, 14, 28, 12, 14, 18, 18, 16]);
-  setRange(ws, r - 1, 9);
-  XLSX.utils.book_append_sheet(wb, ws, "Consumos por Referencia");
+  setCols(ws, [12, 26, 10, 12, 24, 10, 12, 16, 18, 12]);
+  setRange(ws, 9, r - 1);
+  XLSX.utils.book_append_sheet(wb, ws, "🔩 Materiales");
 }
 
 // ---------------------------------------------------------------------------
 // Función principal
 // ---------------------------------------------------------------------------
 export function exportarExcel(referencias, parametros, periodoLabel) {
-  const calculados = referencias.map((ref) => ({ ref, c: calcCostos(ref, parametros) }));
-
-  const totalRefs = calculados.length || 1;
-  const costoProdProm = calculados.reduce((s, it) => s + it.c.costoProd, 0) / totalRefs;
-  const precioVentaProm = calculados.reduce((s, it) => s + it.c.precioVenta, 0) / totalRefs;
-  const totalAlertas = calculados.filter((it) => it.c.variacion != null && Math.abs(it.c.variacion) > 10).length;
-
+  const calc = referencias.map((r) => ({ ref: r, ...calcCostos(r, parametros) }));
   const wb = XLSX.utils.book_new();
+  wb.Workbook = { Sheets: [{}, {}, {}, {}] };
 
-  buildPortada(wb, referencias, parametros, periodoLabel, {
-    totalRefs: calculados.length,
-    costoProdProm,
-    precioVentaProm,
-    totalAlertas,
-  });
-  buildResumenEjecutivo(wb, calculados);
-  buildDetalle(wb, calculados, periodoLabel);
-  buildConsumos(wb, calculados);
+  buildPortada(wb, referencias, calc, parametros, periodoLabel);
+  buildResumen(wb, referencias, calc);
+  buildDetalle(wb, referencias, calc, periodoLabel);
+  buildMateriales(wb, referencias, calc);
 
-  const safeLabel = (periodoLabel || "Todos").replace(/\s+/g, "_");
-  const fecha = new Date().toISOString().slice(0, 10);
-  XLSX.writeFile(wb, `Donsoon_Costos_${safeLabel}_${fecha}.xlsx`);
+  wb.Workbook.Sheets[0].TabColor = { rgb: "1F3864" };
+  wb.Workbook.Sheets[1].TabColor = { rgb: "2E75B6" };
+  wb.Workbook.Sheets[2].TabColor = { rgb: "065F46" };
+  wb.Workbook.Sheets[3].TabColor = { rgb: "7C3AED" };
+
+  const nombre = `Donsoon_Costos_${(periodoLabel || "Todos").replace(/\s+/g, "_")}_${new Date().toISOString().slice(0, 10)}.xlsx`;
+  XLSX.writeFile(wb, nombre);
 }
