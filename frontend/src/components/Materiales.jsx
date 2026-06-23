@@ -114,7 +114,6 @@ export default function Materiales({ materiales, reload }) {
         <table className="data-table">
           <thead>
             <tr>
-              <th>Código</th>
               <th>Nombre</th>
               <th>Unidad</th>
               <th>Costo unit.</th>
@@ -124,10 +123,7 @@ export default function Materiales({ materiales, reload }) {
           <tbody>
             {materialesFiltrados.map((m) => (
               <tr key={m.id}>
-                <td>
-                  {m.id}
-                </td>
-                <td>{m.nombre}</td>
+                <td>{m.id} — {m.nombre}</td>
                 <td>{m.unidad}</td>
                 <td>{COP(m.costo)}</td>
                 <td>
@@ -144,7 +140,7 @@ export default function Materiales({ materiales, reload }) {
             ))}
             {materiales.length === 0 && (
               <tr>
-                <td colSpan={5}>
+                <td colSpan={4}>
                   <div className="empty-state">
                     <div className="empty-state-icon">
                       <Boxes size={28} />
@@ -160,7 +156,7 @@ export default function Materiales({ materiales, reload }) {
             )}
             {materiales.length > 0 && materialesFiltrados.length === 0 && (
               <tr>
-                <td colSpan={5}>
+                <td colSpan={4}>
                   <div className="empty-state">
                     <div className="empty-state-icon">
                       <Boxes size={28} />

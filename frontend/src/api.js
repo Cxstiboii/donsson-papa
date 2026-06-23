@@ -63,7 +63,7 @@ export function calcCostos(ref, params) {
   const mpd = (ref.consumos || []).reduce((s, c) => {
     return s + (c.material?.costo || 0) * (c.cantidad || 0);
   }, 0);
-  const mod = (params.tarifaMOD || 0) * ((ref.segMOD || 0) / 3600);
+  const mod = ref.segMOD || 0;
   const cif = ref.cifUnitario || 0;
   const costoProd = mpd + mod + cif;
   const costoTotal = costoProd * (1 + (params.pctGAV || 0) / 100);

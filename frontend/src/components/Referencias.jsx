@@ -16,16 +16,9 @@ function formatCOP(num) {
 }
 
 function emptyForm() {
-  return { id: "", nombre: "", familia: "", mes: "", segMOD: 60, cifUnitario: 0, costoReal: "", consumos: {} };
+  return { id: "", nombre: "", familia: "", mes: "", hMOD: 0, hCIF: 0, costoReal: "", consumos: {} };
 }
 
-function segToHMS(seg) {
-  const s = Math.floor(Number(seg) || 0);
-  const h = Math.floor(s / 3600);
-  const m = Math.floor((s % 3600) / 60);
-  const sc = s % 60;
-  return `${h}h ${m}m ${sc}s`;
-}
 
 const TH = { padding: "8px 10px", textAlign: "left", fontWeight: 600, fontSize: 12, color: "var(--color-muted)", whiteSpace: "nowrap" };
 const TD = { padding: "8px 10px", verticalAlign: "middle" };
@@ -126,8 +119,8 @@ export default function Referencias({ referencias, materiales, parametros, reloa
       nombre: r.nombre,
       familia: r.familia,
       mes: r.mes,
-      segMOD: r.segMOD ?? 60,
-      cifUnitario: r.cifUnitario ?? 0,
+      hMOD: r.segMOD ?? 0,
+      hCIF: r.cifUnitario ?? 0,
       costoReal: r.costoReal || "",
       consumos,
     });
@@ -168,8 +161,8 @@ export default function Referencias({ referencias, materiales, parametros, reloa
         nombre: form.nombre,
         familia: form.familia,
         mes: form.mes,
-        segMOD: Number(form.segMOD),
-        cifUnitario: parseCOP(form.cifUnitario) || 0,
+        segMOD: Number(form.hMOD),
+        cifUnitario: Number(form.hCIF),
         costoReal: parseCOP(form.costoReal) || 0,
         consumos,
       };
@@ -394,7 +387,7 @@ export default function Referencias({ referencias, materiales, parametros, reloa
                   <td>{r.familia}</td>
                   <td>{mesLabel(r.mes)}</td>
                   <td>{COP(c.mpd)}</td>
-                  <td title={segToHMS(r.segMOD)}>{COP(c.mod)}</td>
+                  <td>{COP(c.mod)}</td>
                   <td>{COP(c.cif)}</td>
                   <td style={{ fontWeight: 600 }}>{COP(c.costoProd)}</td>
                   <td>{r.costoReal > 0 ? COP(r.costoReal) : "—"}</td>
@@ -473,12 +466,11 @@ export default function Referencias({ referencias, materiales, parametros, reloa
               <div className="field-grid-2">
                 <div>
                   <label className="field-label">Costo mano de obra</label>
-                  <input type="number" step="1" min="0" className="input" value={form.segMOD} onChange={(e) => setForm({ ...form, segMOD: e.target.value })} required />
-                  <div style={{ fontSize: 12, color: "var(--color-muted)", marginTop: 4 }}>{segToHMS(form.segMOD)}</div>
+                  <input type="number" step="1" min="0" className="input" placeholder="$ 0" value={form.hMOD} onChange={(e) => setForm({ ...form, hMOD: e.target.value })} required />
                 </div>
                 <div>
                   <label className="field-label">Costo Carga Fabril en COP</label>
-                  <input type="text" className="input" value={formatCOP(form.cifUnitario)} onChange={(e) => setForm({ ...form, cifUnitario: parseCOP(e.target.value) })} required />
+                  <input type="number" step="1" min="0" className="input" placeholder="$ 0" value={form.hCIF} onChange={(e) => setForm({ ...form, hCIF: e.target.value })} required />
                 </div>
               </div>
 
@@ -651,9 +643,8 @@ export default function Referencias({ referencias, materiales, parametros, reloa
                     </div>
                     <div className="field-grid-2">
                       <div>
-                        <label className="field-label">MOD (segundos)</label>
-                        <input type="number" className="input" value={drawerInfoForm.segMOD} onChange={(e) => setDrawerInfoForm((f) => ({ ...f, segMOD: e.target.value }))} />
-                        <div style={{ fontSize: 11, color: "var(--color-muted)", marginTop: 2 }}>{segToHMS(drawerInfoForm.segMOD)}</div>
+                        <label className="field-label">MOD (COP)</label>
+                        <input type="number" step="1" min="0" className="input" placeholder="$ 0" value={drawerInfoForm.segMOD} onChange={(e) => setDrawerInfoForm((f) => ({ ...f, segMOD: e.target.value }))} />
                       </div>
                       <div>
                         <label className="field-label">CIF (COP)</label>
@@ -676,7 +667,7 @@ export default function Referencias({ referencias, materiales, parametros, reloa
                     {[
                       { label: "Familia", value: drawerRef.familia },
                       { label: "Mes", value: mesLabel(drawerRef.mes) },
-                      { label: "Costo MOD", value: segToHMS(drawerRef.segMOD) },
+                      { label: "Costo MOD", value: COP(drawerRef.segMOD) },
                       { label: "Costo CIF", value: COP(drawerRef.cifUnitario) },
                       { label: "Costo Real Odoo", value: drawerRef.costoReal > 0 ? COP(drawerRef.costoReal) : "—" },
                     ].map(({ label, value }) => (
