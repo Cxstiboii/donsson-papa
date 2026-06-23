@@ -16,7 +16,7 @@ function formatCOP(num) {
 }
 
 function emptyForm() {
-  return { id: "", nombre: "", familia: "", mes: "", hMOD: 0, hCIF: 0, costoReal: "", consumos: {} };
+  return { id: "", familia: "", mes: "", hMOD: 0, hCIF: 0, costoReal: "", consumos: {} };
 }
 
 
@@ -76,7 +76,7 @@ export default function Referencias({ referencias, materiales, parametros, reloa
       }
       if (busqueda) {
         const q = busqueda.toLowerCase();
-        if (!r.id.toLowerCase().includes(q) && !r.nombre.toLowerCase().includes(q)) return false;
+        if (!r.id.toLowerCase().includes(q)) return false;
       }
       return true;
     });
@@ -116,7 +116,6 @@ export default function Referencias({ referencias, materiales, parametros, reloa
     for (const c of r.consumos) consumos[c.materialId] = c.cantidad;
     setForm({
       id: r.id,
-      nombre: r.nombre,
       familia: r.familia,
       mes: r.mes,
       hMOD: r.segMOD ?? 0,
@@ -158,7 +157,6 @@ export default function Referencias({ referencias, materiales, parametros, reloa
 
       const payload = {
         id: form.id,
-        nombre: form.nombre,
         familia: form.familia,
         mes: form.mes,
         segMOD: Number(form.hMOD),
@@ -182,7 +180,7 @@ export default function Referencias({ referencias, materiales, parametros, reloa
   }
 
   async function handleDelete(r) {
-    if (!confirm(`¿Eliminar la referencia ${r.id} - ${r.nombre}?`)) return;
+    if (!confirm(`¿Eliminar la referencia ${r.id}?`)) return;
     try {
       await referenciasApi.remove(r.id);
       await reload();
@@ -196,7 +194,6 @@ export default function Referencias({ referencias, materiales, parametros, reloa
     setDrawerRef(r);
     setDrawerEditingInfo(false);
     setDrawerInfoForm({
-      nombre: r.nombre,
       familia: r.familia,
       mes: r.mes,
       segMOD: r.segMOD,
@@ -211,7 +208,6 @@ export default function Referencias({ referencias, materiales, parametros, reloa
 
   function buildRefPayload(ref, consumos) {
     return {
-      nombre: ref.nombre,
       familia: ref.familia,
       mes: ref.mes,
       segMOD: ref.segMOD,
@@ -226,7 +222,6 @@ export default function Referencias({ referencias, materiales, parametros, reloa
     try {
       const consumos = (drawerRef.consumos || []).map((c) => ({ materialId: c.materialId, cantidad: c.cantidad }));
       await referenciasApi.update(drawerRef.id, {
-        nombre: drawerInfoForm.nombre,
         familia: drawerInfoForm.familia,
         mes: drawerInfoForm.mes,
         segMOD: Number(drawerInfoForm.segMOD),
@@ -315,7 +310,7 @@ export default function Referencias({ referencias, materiales, parametros, reloa
         <div style={{ position: "relative", minWidth: 220, flex: "1 1 220px" }}>
           <Search size={16} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "var(--color-muted)" }} />
           <input
-            placeholder="Buscar por código o nombre…"
+            placeholder="Buscar por código…"
             value={busqueda}
             onChange={(e) => setBusqueda(e.target.value)}
             className="input"
@@ -355,7 +350,6 @@ export default function Referencias({ referencias, materiales, parametros, reloa
           <thead>
             <tr>
               <th>Código</th>
-              <th>Nombre</th>
               <th>Familia</th>
               <th>Mes</th>
               <th>MPD</th>
@@ -383,7 +377,6 @@ export default function Referencias({ referencias, materiales, parametros, reloa
                   onClick={() => openDrawer(r)}
                 >
                   <td>{r.id}</td>
-                  <td>{r.nombre}</td>
                   <td>{r.familia}</td>
                   <td>{mesLabel(r.mes)}</td>
                   <td>{COP(c.mpd)}</td>
@@ -411,7 +404,7 @@ export default function Referencias({ referencias, materiales, parametros, reloa
             })}
             {filtradas.length === 0 && (
               <tr>
-                <td colSpan={11}>
+                <td colSpan={10}>
                   <div className="empty-state">
                     <div className="empty-state-icon"><FileBarChart size={28} /></div>
                     <div className="empty-state-title">No hay referencias que coincidan con el filtro</div>
@@ -448,9 +441,6 @@ export default function Referencias({ referencias, materiales, parametros, reloa
                   </select>
                 </div>
               </div>
-
-              <label className="field-label">Nombre</label>
-              <input className="input" value={form.nombre} onChange={(e) => setForm({ ...form, nombre: e.target.value })} required />
 
               <div className="field-grid-2">
                 <div>
@@ -582,8 +572,6 @@ export default function Referencias({ referencias, materiales, parametros, reloa
                 <div style={{ fontSize: 11, color: "var(--color-muted)", marginBottom: 3, textTransform: "uppercase", letterSpacing: ".5px" }}>Referencia</div>
                 <h2 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: "var(--color-text)", lineHeight: 1.3 }}>
                   <span style={{ color: "var(--color-primary)" }}>{drawerRef.id}</span>
-                  <span style={{ color: "var(--color-muted)", margin: "0 8px" }}>—</span>
-                  {drawerRef.nombre}
                 </h2>
               </div>
               <button
@@ -610,7 +598,6 @@ export default function Referencias({ referencias, materiales, parametros, reloa
                       onClick={() => {
                         setDrawerEditingInfo(true);
                         setDrawerInfoForm({
-                          nombre: drawerRef.nombre,
                           familia: drawerRef.familia,
                           mes: drawerRef.mes,
                           segMOD: drawerRef.segMOD,

@@ -32,13 +32,13 @@ function parsearProducto(productoStr) {
 
 router.post("/", upload.single("file"), async (req, res) => {
   try {
-    const { referenciaId, referenciaNombre, familia, mes } = req.body;
+    const { referenciaId, familia, mes } = req.body;
 
     if (!req.file) {
       return res.status(400).json({ error: "Archivo requerido" });
     }
-    if (!referenciaId || !referenciaNombre || !familia || !mes) {
-      return res.status(400).json({ error: "Faltan campos obligatorios: referenciaId, referenciaNombre, familia, mes" });
+    if (!referenciaId || !familia || !mes) {
+      return res.status(400).json({ error: "Faltan campos obligatorios: referenciaId, familia, mes" });
     }
 
     const wb = XLSX.read(req.file.buffer, { type: "buffer" });
@@ -82,7 +82,6 @@ router.post("/", upload.single("file"), async (req, res) => {
         where: { id: referenciaId },
         create: {
           id: referenciaId,
-          nombre: referenciaNombre,
           familia,
           mes,
           fechaCreacion: mes,
@@ -90,7 +89,7 @@ router.post("/", upload.single("file"), async (req, res) => {
           cifUnitario: 0,
           costoReal: 0,
         },
-        update: { nombre: referenciaNombre, familia, mes },
+        update: { familia, mes },
       });
 
       await tx.consumo.deleteMany({ where: { referenciaId } });

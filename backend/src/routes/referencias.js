@@ -24,8 +24,8 @@ router.get("/", async (req, res) => {
 
 router.post("/", async (req, res) => {
   try {
-    const { id, nombre, familia, segMOD, cifUnitario, costoReal, mes, consumos } = req.body;
-    if (!id || !nombre || !familia || !mes) {
+    const { id, familia, segMOD, cifUnitario, costoReal, mes, consumos } = req.body;
+    if (!id || !familia || !mes) {
       return res.status(400).json({ error: "Faltan campos obligatorios" });
     }
 
@@ -33,7 +33,6 @@ router.post("/", async (req, res) => {
       const ref = await tx.referencia.create({
         data: {
           id,
-          nombre,
           familia,
           segMOD: segMOD ?? 60,
           cifUnitario: cifUnitario ?? 0,
@@ -70,12 +69,12 @@ router.post("/", async (req, res) => {
 
 router.put("/:id", async (req, res) => {
   try {
-    const { nombre, familia, segMOD, cifUnitario, costoReal, mes, consumos } = req.body;
+    const { familia, segMOD, cifUnitario, costoReal, mes, consumos } = req.body;
 
     const referencia = await prisma.$transaction(async (tx) => {
       await tx.referencia.update({
         where: { id: req.params.id },
-        data: { nombre, familia, segMOD, cifUnitario, costoReal, mes },
+        data: { familia, segMOD, cifUnitario, costoReal, mes },
       });
 
       await tx.consumo.deleteMany({ where: { referenciaId: req.params.id } });

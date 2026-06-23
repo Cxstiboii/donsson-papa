@@ -20,7 +20,7 @@ model Material {
 
 model Referencia {
   id            String    @id
-  nombre        String
+  nombre        String    @default("")
   familia       String
   segMOD        Float     @default(60)
   cifUnitario   Float     @default(0)

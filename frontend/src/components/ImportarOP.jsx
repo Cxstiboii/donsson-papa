@@ -15,7 +15,6 @@ const labelStyle = {
 export default function ImportarOP({ reload }) {
   const [file, setFile] = useState(null);
   const [referenciaId, setReferenciaId] = useState("");
-  const [referenciaNombre, setReferenciaNombre] = useState("");
   const [familia, setFamilia] = useState("AAA");
   const [mes, setMes] = useState("");
   const [loading, setLoading] = useState(false);
@@ -26,7 +25,6 @@ export default function ImportarOP({ reload }) {
     e.preventDefault();
     if (!file) return setError("Selecciona un archivo .xlsx");
     if (!referenciaId.trim()) return setError("Ingresa el código de referencia");
-    if (!referenciaNombre.trim()) return setError("Ingresa el nombre de la referencia");
     if (!mes) return setError("Selecciona el mes");
 
     setLoading(true);
@@ -37,7 +35,6 @@ export default function ImportarOP({ reload }) {
       const fd = new FormData();
       fd.append("file", file);
       fd.append("referenciaId", referenciaId.trim());
-      fd.append("referenciaNombre", referenciaNombre.trim());
       fd.append("familia", familia);
       fd.append("mes", mes);
 
@@ -90,16 +87,6 @@ export default function ImportarOP({ reload }) {
             placeholder="ej: REF-001"
             value={referenciaId}
             onChange={(e) => setReferenciaId(e.target.value)}
-          />
-        </div>
-
-        <div>
-          <label style={labelStyle}>Nombre de la referencia</label>
-          <input
-            className="input"
-            placeholder="ej: Filtro de aceite"
-            value={referenciaNombre}
-            onChange={(e) => setReferenciaNombre(e.target.value)}
           />
         </div>
 
