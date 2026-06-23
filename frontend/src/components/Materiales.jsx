@@ -4,6 +4,17 @@ import { materialesApi, COP, UNIDADES } from "../api.js";
 
 const OTRA_UNIDAD = "__otra__";
 
+function parseCOP(str) {
+  return Number(String(str).replace(/\./g, "").replace(/,/g, "")) || 0;
+}
+
+function formatCOP(num) {
+  if (num === "" || num == null) return "";
+  const n = Number(String(num).replace(/\./g, ""));
+  if (isNaN(n)) return "";
+  return n.toLocaleString("es-CO");
+}
+
 const emptyForm = { id: "", nombre: "", unidad: UNIDADES[0], unidadCustom: "", costo: "" };
 
 export default function Materiales({ materiales, reload }) {
@@ -45,9 +56,20 @@ export default function Materiales({ materiales, reload }) {
     setError("");
     try {
       const unidad = form.unidad === OTRA_UNIDAD ? form.unidadCustom.trim() : form.unidad;
-      const payload = { id: form.id, nombre: form.nombre, unidad, costo: Number(form.costo) };
+      const payload = { id: form.id, nombre: form.nombre, unidad, costo: parseCOP(form.costo) || 0 };
       if (editing) {
-        await materialesApi.update(editing.id, payload);
+        if (form.id !== editing.id) {
+          const existe = materiales.some((m) => m.id === form.id);
+          if (existe) {
+            setError("Ya existe un material con ese código.");
+            setSaving(false);
+            return;
+          }
+          await materialesApi.create(payload);
+          await materialesApi.remove(editing.id);
+        } else {
+          await materialesApi.update(editing.id, payload);
+        }
       } else {
         await materialesApi.create(payload);
       }
@@ -162,16 +184,9 @@ export default function Materiales({ materiales, reload }) {
               <input
                 className="input"
                 value={form.id}
-                disabled={!!editing}
                 onChange={(e) => setForm({ ...form, id: e.target.value })}
                 required
-                style={editing ? { opacity: 0.6, cursor: "not-allowed" } : undefined}
               />
-              {editing && (
-                <div style={{ fontSize: 11, color: "#94A3B8", marginTop: 2 }}>
-                  El código no puede modificarse después de creado.
-                </div>
-              )}
               <label className="field-label">Nombre</label>
               <input
                 className="input"
@@ -197,10 +212,9 @@ export default function Materiales({ materiales, reload }) {
               <label className="field-label">Costo unitario</label>
               <input
                 className="input"
-                type="number"
-                step="0.01"
-                value={form.costo}
-                onChange={(e) => setForm({ ...form, costo: e.target.value })}
+                type="text"
+                value={formatCOP(form.costo)}
+                onChange={(e) => setForm({ ...form, costo: parseCOP(e.target.value) })}
                 required
               />
 

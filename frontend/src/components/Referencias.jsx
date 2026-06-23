@@ -4,6 +4,17 @@ import { referenciasApi, calcCostos, COP, mesLabel } from "../api.js";
 import FiltroFecha, { dentroDeRango } from "../FiltroFecha.jsx";
 import { exportarExcel } from "../exportExcel.js";
 
+function parseCOP(str) {
+  return Number(String(str).replace(/\./g, "").replace(/,/g, "")) || 0;
+}
+
+function formatCOP(num) {
+  if (num === "" || num == null) return "";
+  const n = Number(String(num).replace(/\./g, ""));
+  if (isNaN(n)) return "";
+  return n.toLocaleString("es-CO");
+}
+
 function emptyForm() {
   return { id: "", nombre: "", familia: "", mes: "", segMOD: 60, cifUnitario: 0, costoReal: "", consumos: {} };
 }
@@ -133,8 +144,8 @@ export default function Referencias({ referencias, materiales, parametros, reloa
         familia: form.familia,
         mes: form.mes,
         segMOD: Number(form.segMOD),
-        cifUnitario: Number(form.cifUnitario),
-        costoReal: form.costoReal === "" ? 0 : Number(form.costoReal),
+        cifUnitario: parseCOP(form.cifUnitario) || 0,
+        costoReal: parseCOP(form.costoReal) || 0,
         consumos,
       };
 
@@ -309,7 +320,7 @@ export default function Referencias({ referencias, materiales, parametros, reloa
                 </div>
                 <div>
                   <label className="field-label">Costo real Odoo</label>
-                  <input type="number" step="0.01" className="input" value={form.costoReal} onChange={(e) => setForm({ ...form, costoReal: e.target.value })} />
+                  <input type="text" className="input" value={formatCOP(form.costoReal)} onChange={(e) => setForm({ ...form, costoReal: parseCOP(e.target.value) })} />
                 </div>
               </div>
 
@@ -332,12 +343,10 @@ export default function Referencias({ referencias, materiales, parametros, reloa
                 <div>
                   <label className="field-label">Carga fabril unitaria (COP)</label>
                   <input
-                    type="number"
-                    step="1"
-                    min="0"
+                    type="text"
                     className="input"
-                    value={form.cifUnitario}
-                    onChange={(e) => setForm({ ...form, cifUnitario: e.target.value })}
+                    value={formatCOP(form.cifUnitario)}
+                    onChange={(e) => setForm({ ...form, cifUnitario: parseCOP(e.target.value) })}
                     required
                   />
                 </div>

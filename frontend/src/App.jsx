@@ -11,6 +11,7 @@ import {
   TriangleAlert,
   LineChart,
   CalendarDays,
+  Upload,
 } from "lucide-react";
 import Login from "./components/Login.jsx";
 import Referencias from "./components/Referencias.jsx";
@@ -18,6 +19,7 @@ import Materiales from "./components/Materiales.jsx";
 import Parametros from "./components/Parametros.jsx";
 import Comparativo from "./components/Comparativo.jsx";
 import TabGraficos from "./TabGraficos.jsx";
+import ImportarOdoo from "./components/ImportarOdoo.jsx";
 import {
   getToken,
   clearToken,
@@ -34,6 +36,7 @@ const TABS = [
   { key: "parametros", label: "Parámetros", icon: Sliders },
   { key: "comparativo", label: "Comparativo Odoo", icon: GitCompare },
   { key: "graficos", label: "Gráficos", icon: LineChart },
+  { key: "importar", label: "Importar Odoo", icon: Upload },
 ];
 
 export default function App() {
@@ -197,6 +200,9 @@ export default function App() {
             )}
             {tab === "graficos" && (
               <TabGraficos referencias={referenciasFiltradas} parametros={parametros} />
+            )}
+            {tab === "importar" && (
+              <ImportarOdoo referencias={referencias} onImportDone={loadAll} />
             )}
           </>
         )}
