@@ -98,7 +98,7 @@ export default function ImportarOP({ reload }) {
           <label style={labelStyle}>Nombre de la referencia</label>
           <input
             className="input"
-            placeholder="ej: Malla galvanizada cal. 24"
+            placeholder="ej: Filtro de aceite"
             value={referenciaNombre}
             onChange={(e) => setReferenciaNombre(e.target.value)}
           />

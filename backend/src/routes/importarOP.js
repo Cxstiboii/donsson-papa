@@ -43,6 +43,7 @@ router.post("/", upload.single("file"), async (req, res) => {
 
       const parsed = parsearProducto(productoRaw);
       if (!parsed) continue;
+      if (!parsed.materialId || parsed.materialId === "N/A" || !parsed.nombre) continue;
 
       const cantidad = Number(row["Cantidad producto"]) || 0;
       const costo = Number(row["Product Cost"]) || 0;

@@ -37,6 +37,10 @@ export default function Materiales({ materiales, reload }) {
   }
 
   function openEdit(m) {
+    if (!m.id || m.id === "N/A") {
+      alert("Este material tiene un código inválido. Elimínalo directamente desde la base de datos o contacta al administrador.");
+      return;
+    }
     setEditing(m);
     const esConocida = UNIDADES.includes(m.unidad);
     setForm({
@@ -83,6 +87,10 @@ export default function Materiales({ materiales, reload }) {
   }
 
   async function handleDelete(m) {
+    if (!m.id || m.id === "N/A") {
+      alert("Este material tiene un código inválido. Elimínalo directamente desde la base de datos o contacta al administrador.");
+      return;
+    }
     if (!confirm(`¿Eliminar el material ${m.id} - ${m.nombre}?`)) return;
     try {
       await materialesApi.remove(m.id);
@@ -122,9 +130,18 @@ export default function Materiales({ materiales, reload }) {
             </tr>
           </thead>
           <tbody>
-            {materialesFiltrados.map((m) => (
-              <tr key={m.id}>
-                <td>{m.id}</td>
+            {materialesFiltrados.map((m) => {
+              const idInvalido = !m.id || m.id === "N/A";
+              return (
+              <tr key={m.id} style={idInvalido ? { background: "#FFFBEB" } : undefined}>
+                <td>
+                  {m.id}
+                  {idInvalido && (
+                    <span style={{ marginLeft: 6, fontSize: 11, background: "#FEF3C7", color: "#92400E", padding: "2px 6px", borderRadius: 4, fontWeight: 600 }}>
+                      ⚠ Código inválido
+                    </span>
+                  )}
+                </td>
                 <td>{m.nombre}</td>
                 <td>{m.unidad}</td>
                 <td>{COP(m.costo)}</td>
@@ -139,7 +156,8 @@ export default function Materiales({ materiales, reload }) {
                   </button>
                 </td>
               </tr>
-            ))}
+              );
+            })}
             {materiales.length === 0 && (
               <tr>
                 <td colSpan={5}>
