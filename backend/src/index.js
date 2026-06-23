@@ -7,6 +7,7 @@ const authRoutes = require("./routes/auth");
 const materialesRoutes = require("./routes/materiales");
 const referenciasRoutes = require("./routes/referencias");
 const parametrosRoutes = require("./routes/parametros");
+const importarOPRoutes = require("./routes/importarOP");
 const { requireAuth } = require("./middleware/auth");
 
 const app = express();
@@ -22,6 +23,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/materiales", requireAuth, materialesRoutes);
 app.use("/api/referencias", requireAuth, referenciasRoutes);
 app.use("/api/parametros", requireAuth, parametrosRoutes);
+app.use("/api/importar-op", requireAuth, importarOPRoutes);
 
 const publicDir = path.join(__dirname, "..", "public");
 app.use(express.static(publicDir));
