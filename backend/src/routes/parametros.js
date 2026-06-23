@@ -20,11 +20,11 @@ router.get("/", async (req, res) => {
 
 router.put("/", async (req, res) => {
   try {
-    const { tarifaMOD, tarifaCIF, pctGAV, pctMargen } = req.body;
+    const { tarifaMOD, pctGAV, pctMargen } = req.body;
     const parametros = await prisma.parametros.upsert({
       where: { id: 1 },
-      update: { tarifaMOD, tarifaCIF, pctGAV, pctMargen },
-      create: { id: 1, tarifaMOD, tarifaCIF, pctGAV, pctMargen },
+      update: { tarifaMOD, pctGAV, pctMargen },
+      create: { id: 1, tarifaMOD, pctGAV, pctMargen },
     });
     res.json(parametros);
   } catch (e) {

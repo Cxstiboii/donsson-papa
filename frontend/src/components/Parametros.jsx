@@ -1,13 +1,6 @@
 import { useState } from "react";
-import { DollarSign, Cog, Percent, TrendingUp, CheckCircle2, AlertCircle, Save } from "lucide-react";
+import { DollarSign, Percent, TrendingUp, CheckCircle2, AlertCircle, Save } from "lucide-react";
 import { parametrosApi } from "../api.js";
-
-const CARDS = [
-  { key: "tarifaMOD", label: "Tarifa MOD ($/hora)", icon: DollarSign },
-  { key: "tarifaCIF", label: "Tarifa CIF ($/hora)", icon: Cog },
-  { key: "pctGAV", label: "% GAV", icon: Percent },
-  { key: "pctMargen", label: "% Margen", icon: TrendingUp },
-];
 
 export default function Parametros({ parametros, onSaved }) {
   const [form, setForm] = useState(parametros);
@@ -22,7 +15,6 @@ export default function Parametros({ parametros, onSaved }) {
     try {
       const payload = {
         tarifaMOD: Number(form.tarifaMOD),
-        tarifaCIF: Number(form.tarifaCIF),
         pctGAV: Number(form.pctGAV),
         pctMargen: Number(form.pctMargen),
       };
@@ -36,28 +28,40 @@ export default function Parametros({ parametros, onSaved }) {
     }
   }
 
+  const seccion = (label) => (
+    <div style={{ marginTop: 24, marginBottom: 12, paddingBottom: 6, borderBottom: "2px solid #2E75B6" }}>
+      <span style={{ fontWeight: 700, fontSize: 13, color: "#1F3864", textTransform: "uppercase", letterSpacing: 1 }}>{label}</span>
+    </div>
+  );
+
+  const campo = (key, label, Icon, step = "0.01") => (
+    <div className="card">
+      <label className="field-label" style={{ marginTop: 0, display: "flex", alignItems: "center", gap: 6 }}>
+        <Icon size={16} />
+        {label}
+      </label>
+      <input
+        type="number"
+        step={step}
+        value={form[key]}
+        onChange={(e) => setForm({ ...form, [key]: e.target.value })}
+        className="input"
+        style={{ height: 48, fontSize: "var(--fs-20)", fontWeight: 700, color: "var(--color-bg)" }}
+      />
+    </div>
+  );
+
   return (
     <div>
+      {seccion("Mano de obra directa")}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 16, marginBottom: 8 }}>
+        {campo("tarifaMOD", "Tarifa MOD ($/hora)", DollarSign)}
+      </div>
+
+      {seccion("Gastos generales")}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 16, marginBottom: 24 }}>
-        {CARDS.map((c) => {
-          const Icon = c.icon;
-          return (
-            <div key={c.key} className="card">
-              <label className="field-label" style={{ marginTop: 0, display: "flex", alignItems: "center", gap: 6 }}>
-                <Icon size={16} />
-                {c.label}
-              </label>
-              <input
-                type="number"
-                step="0.01"
-                value={form[c.key]}
-                onChange={(e) => setForm({ ...form, [c.key]: e.target.value })}
-                className="input"
-                style={{ height: 48, fontSize: "var(--fs-20)", fontWeight: 700, color: "var(--color-bg)" }}
-              />
-            </div>
-          );
-        })}
+        {campo("pctGAV", "% GAV", Percent)}
+        {campo("pctMargen", "% Margen", TrendingUp)}
       </div>
 
       {msg && (

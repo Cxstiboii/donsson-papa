@@ -22,8 +22,8 @@ model Referencia {
   id            String    @id
   nombre        String
   familia       String
-  hMOD          Float     @default(1)
-  hCIF          Float     @default(0.5)
+  segMOD        Float     @default(60)
+  cifUnitario   Float     @default(0)
   costoReal     Float     @default(0)
   mes           String
   fechaCreacion String
@@ -46,7 +46,6 @@ model Consumo {
 model Parametros {
   id        Int   @id @default(1)
   tarifaMOD Float @default(9500)
-  tarifaCIF Float @default(6200)
   pctGAV    Float @default(18)
   pctMargen Float @default(25)
 }

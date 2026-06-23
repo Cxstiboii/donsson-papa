@@ -10,6 +10,7 @@ import {
   PackageCheck,
   TriangleAlert,
   LineChart,
+  CalendarDays,
 } from "lucide-react";
 import Login from "./components/Login.jsx";
 import Referencias from "./components/Referencias.jsx";
@@ -24,6 +25,7 @@ import {
   referenciasApi,
   parametrosApi,
   calcCostos,
+  mesLabel,
 } from "./api.js";
 
 const TABS = [
@@ -42,6 +44,7 @@ export default function App() {
   const [parametros, setParametros] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [mesActivo, setMesActivo] = useState("");
 
   async function loadAll() {
     setLoading(true);
@@ -66,20 +69,29 @@ export default function App() {
     if (authed) loadAll();
   }, [authed]);
 
+  const mesesDisponibles = useMemo(() => {
+    return [...new Set(referencias.map((r) => r.mes).filter(Boolean))].sort().reverse();
+  }, [referencias]);
+
+  const referenciasFiltradas = useMemo(() => {
+    if (!mesActivo) return referencias;
+    return referencias.filter((r) => r.mes === mesActivo);
+  }, [referencias, mesActivo]);
+
   const kpis = useMemo(() => {
     if (!parametros) return null;
-    const conOdoo = referencias.filter((r) => r.costoReal > 0);
+    const conOdoo = referenciasFiltradas.filter((r) => r.costoReal > 0);
     const alertas = conOdoo.filter((r) => {
       const { variacion } = calcCostos(r, parametros);
       return variacion != null && Math.abs(variacion) > 10;
     });
     return {
-      totalReferencias: referencias.length,
+      totalReferencias: referenciasFiltradas.length,
       totalMateriales: materiales.length,
       conOdoo: conOdoo.length,
       alertas: alertas.length,
     };
-  }, [referencias, materiales, parametros]);
+  }, [referenciasFiltradas, materiales, parametros]);
 
   function handleLogout() {
     clearToken();
@@ -116,6 +128,27 @@ export default function App() {
       )}
 
       <div className="app-main">
+        {/* Selector de mes global */}
+        {!loading && mesesDisponibles.length > 0 && (
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16, flexWrap: "wrap" }}>
+            <CalendarDays size={18} style={{ color: "#2E75B6", flexShrink: 0 }} />
+            <select
+              value={mesActivo}
+              onChange={(e) => setMesActivo(e.target.value)}
+              className="input"
+              style={{ minWidth: 180, maxWidth: 240, flex: "1 1 180px" }}
+            >
+              <option value="">Todos los meses</option>
+              {mesesDisponibles.map((m) => (
+                <option key={m} value={m}>{mesLabel(m)}</option>
+              ))}
+            </select>
+            <span style={{ fontSize: 13, background: "#D6E4F0", color: "#1F3864", borderRadius: 12, padding: "2px 10px", fontWeight: 600 }}>
+              {referenciasFiltradas.length} referencia{referenciasFiltradas.length !== 1 ? "s" : ""}
+            </span>
+          </div>
+        )}
+
         <div className="tab-bar">
           {TABS.map((t) => {
             const Icon = t.icon;
@@ -145,10 +178,11 @@ export default function App() {
           <>
             {tab === "referencias" && (
               <Referencias
-                referencias={referencias}
+                referencias={referenciasFiltradas}
                 materiales={materiales}
                 parametros={parametros}
                 reload={loadAll}
+                mesActivo={mesActivo}
               />
             )}
             {tab === "materiales" && <Materiales materiales={materiales} reload={loadAll} />}
@@ -159,10 +193,10 @@ export default function App() {
               />
             )}
             {tab === "comparativo" && (
-              <Comparativo referencias={referencias} parametros={parametros} />
+              <Comparativo referencias={referenciasFiltradas} parametros={parametros} />
             )}
             {tab === "graficos" && (
-              <TabGraficos referencias={referencias} parametros={parametros} />
+              <TabGraficos referencias={referenciasFiltradas} parametros={parametros} />
             )}
           </>
         )}

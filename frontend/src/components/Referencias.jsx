@@ -5,14 +5,22 @@ import FiltroFecha, { dentroDeRango } from "../FiltroFecha.jsx";
 import { exportarExcel } from "../exportExcel.js";
 
 function emptyForm() {
-  return { id: "", nombre: "", familia: "", mes: "", hMOD: 1, hCIF: 0.5, costoReal: "", consumos: {} };
+  return { id: "", nombre: "", familia: "", mes: "", segMOD: 60, cifUnitario: 0, costoReal: "", consumos: {} };
 }
 
-export default function Referencias({ referencias, materiales, parametros, reload }) {
+function segToHMS(seg) {
+  const s = Math.floor(Number(seg) || 0);
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const sc = s % 60;
+  return `${h}h ${m}m ${sc}s`;
+}
+
+export default function Referencias({ referencias, materiales, parametros, reload, mesActivo }) {
   const [busqueda, setBusqueda] = useState("");
   const [familia, setFamilia] = useState("");
   const [modoFecha, setModoFecha] = useState("mensual");
-  const [mesFiltro, setMesFiltro] = useState("");
+  const [mesFiltro, setMesFiltro] = useState(mesActivo || "");
   const [desde, setDesde] = useState("");
   const [hasta, setHasta] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
@@ -20,6 +28,10 @@ export default function Referencias({ referencias, materiales, parametros, reloa
   const [form, setForm] = useState(emptyForm());
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+
+  // selector de materiales
+  const [matSelectId, setMatSelectId] = useState("");
+  const [matSelectQty, setMatSelectQty] = useState("");
 
   const familias = useMemo(() => {
     return [...new Set(referencias.map((r) => r.familia).filter(Boolean))].sort();
@@ -47,6 +59,12 @@ export default function Referencias({ referencias, materiales, parametros, reloa
     return "Todos los meses";
   }, [modoFecha, mesFiltro, desde, hasta]);
 
+  // materiales disponibles para agregar (los que no están ya en consumosForm)
+  const matsDisponibles = useMemo(() => {
+    const ids = new Set(Object.keys(form.consumos));
+    return materiales.filter((m) => !ids.has(m.id));
+  }, [materiales, form.consumos]);
+
   function handleExport() {
     exportarExcel(filtradas, parametros, filtroLabel).catch((err) => {
       console.error("Error exportando Excel:", err);
@@ -57,6 +75,8 @@ export default function Referencias({ referencias, materiales, parametros, reloa
   function openCreate() {
     setEditing(null);
     setForm(emptyForm());
+    setMatSelectId("");
+    setMatSelectQty("");
     setError("");
     setModalOpen(true);
   }
@@ -70,13 +90,32 @@ export default function Referencias({ referencias, materiales, parametros, reloa
       nombre: r.nombre,
       familia: r.familia,
       mes: r.mes,
-      hMOD: r.hMOD,
-      hCIF: r.hCIF,
+      segMOD: r.segMOD ?? 60,
+      cifUnitario: r.cifUnitario ?? 0,
       costoReal: r.costoReal || "",
       consumos,
     });
+    setMatSelectId("");
+    setMatSelectQty("");
     setError("");
     setModalOpen(true);
+  }
+
+  function agregarMaterial() {
+    if (!matSelectId) return;
+    const qty = Number(matSelectQty);
+    if (qty <= 0) return;
+    setForm((f) => ({ ...f, consumos: { ...f.consumos, [matSelectId]: qty } }));
+    setMatSelectId("");
+    setMatSelectQty("");
+  }
+
+  function quitarMaterial(mid) {
+    setForm((f) => {
+      const c = { ...f.consumos };
+      delete c[mid];
+      return { ...f, consumos: c };
+    });
   }
 
   async function handleSave(e) {
@@ -93,8 +132,8 @@ export default function Referencias({ referencias, materiales, parametros, reloa
         nombre: form.nombre,
         familia: form.familia,
         mes: form.mes,
-        hMOD: Number(form.hMOD),
-        hCIF: Number(form.hCIF),
+        segMOD: Number(form.segMOD),
+        cifUnitario: Number(form.cifUnitario),
         costoReal: form.costoReal === "" ? 0 : Number(form.costoReal),
         consumos,
       };
@@ -179,14 +218,13 @@ export default function Referencias({ referencias, materiales, parametros, reloa
               <th>MOD</th>
               <th>CIF</th>
               <th>Costo Prod.</th>
-              <th>Precio Venta</th>
               <th>Odoo</th>
               <th>Variación%</th>
               <th>Acciones</th>
             </tr>
           </thead>
           <tbody>
-            {filtradas.map((r) => {
+            {filtradas.map((r, rowIdx) => {
               const c = calcCostos(r, parametros);
               const variacionClass =
                 c.variacion == null
@@ -196,17 +234,17 @@ export default function Referencias({ referencias, materiales, parametros, reloa
                   : Math.abs(c.variacion) > 5
                   ? "badge-warning"
                   : "badge-success";
+              const rowBg = rowIdx % 2 === 1 ? "#F8FAFC" : undefined;
               return (
-                <tr key={r.id}>
+                <tr key={r.id} style={rowBg ? { background: rowBg } : undefined}>
                   <td>{r.id}</td>
                   <td>{r.nombre}</td>
                   <td>{r.familia}</td>
                   <td>{mesLabel(r.mes)}</td>
                   <td>{COP(c.mpd)}</td>
-                  <td>{COP(c.mod)}</td>
+                  <td title={segToHMS(r.segMOD)}>{COP(c.mod)}</td>
                   <td>{COP(c.cif)}</td>
                   <td style={{ fontWeight: 600 }}>{COP(c.costoProd)}</td>
-                  <td>{COP(c.precioVenta)}</td>
                   <td>{r.costoReal > 0 ? COP(r.costoReal) : "—"}</td>
                   <td>
                     {c.variacion != null ? (
@@ -228,7 +266,7 @@ export default function Referencias({ referencias, materiales, parametros, reloa
             })}
             {filtradas.length === 0 && (
               <tr>
-                <td colSpan={12}>
+                <td colSpan={11}>
                   <div className="empty-state">
                     <div className="empty-state-icon">
                       <FileBarChart size={28} />
@@ -277,35 +315,108 @@ export default function Referencias({ referencias, materiales, parametros, reloa
 
               <div className="field-grid-2">
                 <div>
-                  <label className="field-label">Horas MOD</label>
-                  <input type="number" step="0.01" className="input" value={form.hMOD} onChange={(e) => setForm({ ...form, hMOD: e.target.value })} required />
+                  <label className="field-label">Tiempo MOD (segundos)</label>
+                  <input
+                    type="number"
+                    step="1"
+                    min="0"
+                    className="input"
+                    value={form.segMOD}
+                    onChange={(e) => setForm({ ...form, segMOD: e.target.value })}
+                    required
+                  />
+                  <div style={{ fontSize: 12, color: "var(--color-muted)", marginTop: 4 }}>
+                    {segToHMS(form.segMOD)}
+                  </div>
                 </div>
                 <div>
-                  <label className="field-label">Horas máquina (CIF)</label>
-                  <input type="number" step="0.01" className="input" value={form.hCIF} onChange={(e) => setForm({ ...form, hCIF: e.target.value })} required />
+                  <label className="field-label">Carga fabril unitaria (COP)</label>
+                  <input
+                    type="number"
+                    step="1"
+                    min="0"
+                    className="input"
+                    value={form.cifUnitario}
+                    onChange={(e) => setForm({ ...form, cifUnitario: e.target.value })}
+                    required
+                  />
                 </div>
               </div>
 
               <label className="field-label" style={{ marginTop: 16 }}>Materiales consumidos</label>
-              <div style={{ maxHeight: 220, overflow: "auto", border: "1px solid var(--color-border)", borderRadius: "var(--radius-card)", padding: 10 }}>
-                {materiales.map((m) => (
-                  <div key={m.id} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-                    <div style={{ flex: 1, fontSize: 13 }}>{m.id} — {m.nombre} ({m.unidad})</div>
-                    <input
-                      type="number"
-                      step="0.0001"
-                      placeholder="0"
-                      value={form.consumos[m.id] ?? ""}
-                      onChange={(e) =>
-                        setForm({ ...form, consumos: { ...form.consumos, [m.id]: e.target.value } })
-                      }
+
+              {/* lista de consumos activos */}
+              {Object.keys(form.consumos).length > 0 && (
+                <div style={{ marginBottom: 10 }}>
+                  {Object.entries(form.consumos).map(([mid, qty]) => {
+                    const mat = materiales.find((m) => m.id === mid);
+                    return (
+                      <div key={mid} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, padding: "6px 10px", background: "#F0F7FF", borderRadius: 6, border: "1px solid #BDD7EE" }}>
+                        <span style={{ fontSize: 12, fontWeight: 700, color: "#2E75B6", minWidth: 64 }}>{mid}</span>
+                        <span style={{ flex: 1, fontSize: 13 }}>{mat ? mat.nombre : mid} {mat ? `(${mat.unidad})` : ""}</span>
+                        <input
+                          type="number"
+                          step="0.0001"
+                          min="0"
+                          value={qty}
+                          onChange={(e) => setForm((f) => ({ ...f, consumos: { ...f.consumos, [mid]: e.target.value } }))}
+                          className="input"
+                          style={{ width: 90, height: 32 }}
+                        />
+                        <button type="button" onClick={() => quitarMaterial(mid)} style={{ background: "none", border: "none", cursor: "pointer", color: "#991B1B", padding: 4 }}>
+                          <X size={16} />
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* selector para agregar */}
+              {matsDisponibles.length > 0 && (
+                <div style={{ display: "flex", gap: 6, alignItems: "flex-end", marginBottom: 6 }}>
+                  <div style={{ flex: 1 }}>
+                    <select
                       className="input"
-                      style={{ width: 100, height: 36 }}
-                    />
+                      value={matSelectId}
+                      onChange={(e) => setMatSelectId(e.target.value)}
+                      style={{ height: 36 }}
+                    >
+                      <option value="">— Seleccionar material —</option>
+                      {matsDisponibles.map((m) => (
+                        <option key={m.id} value={m.id}>{m.id} — {m.nombre} ({m.unidad})</option>
+                      ))}
+                    </select>
                   </div>
-                ))}
-                {materiales.length === 0 && <div style={{ fontSize: 13, color: "var(--color-muted)" }}>No hay materiales registrados.</div>}
-              </div>
+                  <input
+                    type="number"
+                    step="0.0001"
+                    min="0"
+                    placeholder="Cantidad"
+                    value={matSelectQty}
+                    onChange={(e) => setMatSelectQty(e.target.value)}
+                    className="input"
+                    style={{ width: 100, height: 36 }}
+                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); agregarMaterial(); } }}
+                  />
+                  <button
+                    type="button"
+                    onClick={agregarMaterial}
+                    className="btn btn-primary"
+                    style={{ height: 36, padding: "0 12px", whiteSpace: "nowrap" }}
+                    disabled={!matSelectId || !matSelectQty || Number(matSelectQty) <= 0}
+                  >
+                    <Plus size={16} />
+                    Agregar
+                  </button>
+                </div>
+              )}
+              {matsDisponibles.length === 0 && Object.keys(form.consumos).length === 0 && (
+                <div style={{ fontSize: 13, color: "var(--color-muted)" }}>No hay materiales registrados.</div>
+              )}
+              {matsDisponibles.length === 0 && Object.keys(form.consumos).length > 0 && (
+                <div style={{ fontSize: 12, color: "var(--color-muted)" }}>Todos los materiales han sido agregados.</div>
+              )}
 
               {error && (
                 <div className="alert alert-error" style={{ marginTop: 12 }}>

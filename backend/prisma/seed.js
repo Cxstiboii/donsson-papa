@@ -30,7 +30,6 @@ async function main() {
     create: {
       id: 1,
       tarifaMOD: 9500,
-      tarifaCIF: 6200,
       pctGAV: 18,
       pctMargen: 25,
     },

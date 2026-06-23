@@ -281,15 +281,15 @@ function buildMateriales(wb, referencias) {
   const ws = wb.addWorksheet("🔩 Materiales", { properties: { tabColor: { argb: C.azulM } } })
   const materiales = materialesUnicos(referencias)
 
-  mergeFill(ws, 1, 1, 5, S.hPri)
+  mergeFill(ws, 1, 1, 4, S.hPri)
   setCell(ws, 1, 1, "INDUSTRIAS DONSOON — MAESTRO DE MATERIALES", S.hPri)
   ws.getRow(1).height = 26
 
-  mergeFill(ws, 2, 1, 5, S.nota)
-  setCell(ws, 1, 2, "Liste todos los materiales usados en producción, con su costo unitario y proveedor.", S.nota)
+  mergeFill(ws, 2, 1, 4, S.nota)
+  setCell(ws, 1, 2, "Liste todos los materiales usados en producción con su costo unitario.", S.nota)
   ws.getRow(2).height = 18
 
-  ;["Código", "Descripción del material", "Unidad", "Costo unit. (COP)", "Proveedor"].forEach((h, i) =>
+  ;["Código", "Nombre del material", "Unidad", "Costo unit. (COP)"].forEach((h, i) =>
     setCell(ws, i + 1, 3, h, S.hSec)
   )
   ws.getRow(3).height = 22
@@ -300,10 +300,9 @@ function buildMateriales(wb, referencias) {
     setCell(ws, 2, r, m.nombre, styleDato(i))
     setCell(ws, 3, r, m.unidad, { ...styleDato(i), alignment: { horizontal: "center", vertical: "middle" } })
     setCell(ws, 4, r, m.costo || 0, styleNum(i), FMT.cop)
-    setCell(ws, 5, r, m.proveedor || "—", { ...styleDato(i), font: { ...styleDato(i).font, italic: true } })
   })
 
-  autofitCols(ws, [12, 28, 12, 18, 20])
+  autofitCols(ws, [12, 28, 12, 18])
   ws.views = [{ state: "frozen", ySplit: 3 }]
   landscapePage(ws)
   return ws
@@ -373,11 +372,11 @@ function buildMatrizConsumos(wb, referencias, calc, parametros) {
   for (let c = 5; c <= lastCol; c++) setCell(ws, c, r, "", styleNum(0))
   r++
 
-  setCell(ws, 1, r, "MOD-H", S.codigo)
-  setCell(ws, 2, r, "Horas MOD por unidad producida ↓", styleDato(1))
+  setCell(ws, 1, r, "MOD-S", S.codigo)
+  setCell(ws, 2, r, "Segundos MOD por unidad producida ↓", styleDato(1))
   setCell(ws, 3, r, "", styleDato(1))
   setCell(ws, 4, r, "", styleNum(1))
-  referencias.forEach((ref, i) => setCell(ws, 5 + i, r, ref.hMOD || 0, styleNum(1), FMT.hrs))
+  referencias.forEach((ref, i) => setCell(ws, 5 + i, r, ref.segMOD || 0, styleNum(1), FMT.int))
   r++
 
   mergeFill(ws, r, 1, 4, S.totalOscuroL)
@@ -391,19 +390,11 @@ function buildMatrizConsumos(wb, referencias, calc, parametros) {
   ws.getRow(r).height = 18
   r++
 
-  const tarifaCIF = parametros.tarifaCIF
-  setCell(ws, 1, r, "CIF-T", S.codigo)
-  setCell(ws, 2, r, "Tarifa CIF hora-máquina (COP) — ver hoja Parámetros", styleDato(0))
+  setCell(ws, 1, r, "CIF-U", S.codigo)
+  setCell(ws, 2, r, "Carga fabril unitaria (COP) ↓", styleDato(0))
   setCell(ws, 3, r, "", styleDato(0))
-  setCell(ws, 4, r, tarifaCIF, S.num, FMT.cop)
-  for (let c = 5; c <= lastCol; c++) setCell(ws, c, r, "", styleNum(0))
-  r++
-
-  setCell(ws, 1, r, "CIF-H", S.codigo)
-  setCell(ws, 2, r, "Horas máquina por unidad producida ↓", styleDato(1))
-  setCell(ws, 3, r, "", styleDato(1))
-  setCell(ws, 4, r, "", styleNum(1))
-  referencias.forEach((ref, i) => setCell(ws, 5 + i, r, ref.hCIF || 0, styleNum(1), FMT.hrs))
+  setCell(ws, 4, r, "", styleNum(0))
+  referencias.forEach((ref, i) => setCell(ws, 5 + i, r, ref.cifUnitario || 0, styleNum(0), FMT.cop))
   r++
 
   mergeFill(ws, r, 1, 4, S.totalOscuroL)
@@ -454,34 +445,25 @@ function buildParametros(wb, parametros) {
   fila(12, "Tarifa MOD por hora (COP) — automático", parametros.tarifaMOD, { ...styleNum(12), font: font({ bold: true, size: 10, color: { argb: "FF000000" } }) }, FMT.cop)
 
   for (let c = 1; c <= 4; c++) setCell(ws, c, 13, "", S.blank)
-  sep(14, "COSTOS INDIRECTOS (CIF)")
-  fila(15, "Arriendo planta (COP/mes)", 3500000, styleNum(15), FMT.cop)
-  fila(16, "Energía eléctrica (COP/mes)", 1200000, styleNum(16), FMT.cop)
-  fila(17, "Agua y gas (COP/mes)", 400000, styleNum(17), FMT.cop)
-  fila(18, "Mantenimiento maquinaria (COP/mes)", 600000, styleNum(18), FMT.cop)
-  fila(19, "Depreciación equipos (COP/mes)", 800000, styleNum(19), FMT.cop)
-  fila(20, "Seguros planta (COP/mes)", 250000, styleNum(20), FMT.cop)
-  fila(21, "Otros CIF (COP/mes)", 300000, styleNum(21), FMT.cop)
+  sep(14, "GASTOS GENERALES")
+  fila(15, "% GAV (gastos adm. y ventas)", parametros.pctGAV / 100, { ...styleNum(15), font: font({ bold: true, size: 10, color: { argb: "FF000000" } }) }, FMT.pct)
+  fila(16, "% Margen de utilidad", parametros.pctMargen / 100, { ...styleNum(16), font: font({ bold: true, size: 10, color: { argb: "FF000000" } }) }, FMT.pct)
 
-  setCell(ws, 1, 22, "TOTAL CIF MENSUAL — automático", S.totalOscuroL)
-  setCell(ws, 2, 22, 7050000, S.totalOscuro, FMT.cop)
-  setCell(ws, 3, 22, "", S.totalOscuroL)
-  setCell(ws, 4, 22, "", S.totalOscuroL)
+  for (let c = 1; c <= 4; c++) setCell(ws, c, 17, "", S.blank)
+  sep(18, "CARGA FABRIL (CIF)")
+  fila(19, "La CIF se ingresa directamente en cada referencia como valor unitario en COP.", "", { ...S.muted, alignment: { horizontal: "left", vertical: "middle" } })
 
-  fila(23, "Horas máquina disponibles/mes", 640, styleNum(23), FMT.int)
-  fila(24, "Tarifa CIF hora-máquina — automático", parametros.tarifaCIF, { ...styleNum(24), font: font({ bold: true, size: 10, color: { argb: "FF000000" } }) }, FMT.cop)
+  for (let c = 1; c <= 4; c++) setCell(ws, c, 20, "", S.blank)
+  sep(21, "LEYENDA DE COLORES")
 
-  for (let c = 1; c <= 4; c++) setCell(ws, c, 25, "", S.blank)
-  sep(26, "LEYENDA DE COLORES")
+  mergeFill(ws, 22, 1, 4, S.pctFilaL)
+  setCell(ws, 1, 22, "Celda azul (texto azul): ingresar dato", S.pctFilaL)
 
-  mergeFill(ws, 27, 1, 4, S.pctFilaL)
-  setCell(ws, 1, 27, "Celda azul (texto azul): ingresar dato", S.pctFilaL)
+  mergeFill(ws, 23, 1, 4, { fill: fill(C.gris), border: bd(), font: font({ size: 10, color: { argb: "FF000000" } }), alignment: { horizontal: "left", vertical: "middle" } })
+  setCell(ws, 1, 23, "Celda gris: calculada automáticamente", { fill: fill(C.gris), border: bd(), font: font({ size: 10, color: { argb: "FF000000" } }), alignment: { horizontal: "left", vertical: "middle" } })
 
-  mergeFill(ws, 28, 1, 4, { fill: fill(C.gris), border: bd(), font: font({ size: 10, color: { argb: "FF000000" } }), alignment: { horizontal: "left", vertical: "middle" } })
-  setCell(ws, 1, 28, "Celda gris: calculada automáticamente", { fill: fill(C.gris), border: bd(), font: font({ size: 10, color: { argb: "FF000000" } }), alignment: { horizontal: "left", vertical: "middle" } })
-
-  mergeFill(ws, 29, 1, 4, { ...S.varOk, alignment: { horizontal: "left", vertical: "middle" } })
-  setCell(ws, 1, 29, "Celda verde: vinculada desde otra hoja", { ...S.varOk, alignment: { horizontal: "left", vertical: "middle" } })
+  mergeFill(ws, 24, 1, 4, { ...S.varOk, alignment: { horizontal: "left", vertical: "middle" } })
+  setCell(ws, 1, 24, "Celda verde: vinculada desde otra hoja", { ...S.varOk, alignment: { horizontal: "left", vertical: "middle" } })
 
   autofitCols(ws, [30, 20, 12, 12])
   landscapePage(ws)

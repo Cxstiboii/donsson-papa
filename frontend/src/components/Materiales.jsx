@@ -4,7 +4,7 @@ import { materialesApi, COP, UNIDADES } from "../api.js";
 
 const OTRA_UNIDAD = "__otra__";
 
-const emptyForm = { id: "", nombre: "", unidad: UNIDADES[0], unidadCustom: "", costo: "", proveedor: "" };
+const emptyForm = { id: "", nombre: "", unidad: UNIDADES[0], unidadCustom: "", costo: "" };
 
 export default function Materiales({ materiales, reload }) {
   const [modalOpen, setModalOpen] = useState(false);
@@ -12,6 +12,11 @@ export default function Materiales({ materiales, reload }) {
   const [form, setForm] = useState(emptyForm);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+  const [busqueda, setBusqueda] = useState("");
+
+  const materialesFiltrados = materiales.filter((m) =>
+    m.nombre.toLowerCase().includes(busqueda.toLowerCase())
+  );
 
   function openCreate() {
     setEditing(null);
@@ -29,7 +34,6 @@ export default function Materiales({ materiales, reload }) {
       unidad: esConocida ? m.unidad : OTRA_UNIDAD,
       unidadCustom: esConocida ? "" : m.unidad,
       costo: m.costo,
-      proveedor: m.proveedor || "",
     });
     setError("");
     setModalOpen(true);
@@ -41,7 +45,7 @@ export default function Materiales({ materiales, reload }) {
     setError("");
     try {
       const unidad = form.unidad === OTRA_UNIDAD ? form.unidadCustom.trim() : form.unidad;
-      const payload = { id: form.id, nombre: form.nombre, unidad, costo: Number(form.costo), proveedor: form.proveedor };
+      const payload = { id: form.id, nombre: form.nombre, unidad, costo: Number(form.costo) };
       if (editing) {
         await materialesApi.update(editing.id, payload);
       } else {
@@ -75,26 +79,33 @@ export default function Materiales({ materiales, reload }) {
         </button>
       </div>
 
+      <input
+        type="text"
+        placeholder="Buscar por nombre…"
+        value={busqueda}
+        onChange={(e) => setBusqueda(e.target.value)}
+        className="input"
+        style={{ marginBottom: 12, maxWidth: 320 }}
+      />
+
       <div className="table-wrap">
         <table className="data-table">
           <thead>
             <tr>
               <th>Código</th>
-              <th>Descripción</th>
+              <th>Nombre</th>
               <th>Unidad</th>
               <th>Costo unit.</th>
-              <th>Proveedor</th>
               <th>Acciones</th>
             </tr>
           </thead>
           <tbody>
-            {materiales.map((m) => (
+            {materialesFiltrados.map((m) => (
               <tr key={m.id}>
                 <td>{m.id}</td>
                 <td>{m.nombre}</td>
                 <td>{m.unidad}</td>
                 <td>{COP(m.costo)}</td>
-                <td>{m.proveedor}</td>
                 <td>
                   <button onClick={() => openEdit(m)} className="btn btn-ghost">
                     <Pencil size={16} />
@@ -109,7 +120,7 @@ export default function Materiales({ materiales, reload }) {
             ))}
             {materiales.length === 0 && (
               <tr>
-                <td colSpan={6}>
+                <td colSpan={5}>
                   <div className="empty-state">
                     <div className="empty-state-icon">
                       <Boxes size={28} />
@@ -119,6 +130,18 @@ export default function Materiales({ materiales, reload }) {
                       <Plus size={20} />
                       Nuevo material
                     </button>
+                  </div>
+                </td>
+              </tr>
+            )}
+            {materiales.length > 0 && materialesFiltrados.length === 0 && (
+              <tr>
+                <td colSpan={5}>
+                  <div className="empty-state">
+                    <div className="empty-state-icon">
+                      <Boxes size={28} />
+                    </div>
+                    <div className="empty-state-title">Sin resultados para esa búsqueda</div>
                   </div>
                 </td>
               </tr>
@@ -142,8 +165,14 @@ export default function Materiales({ materiales, reload }) {
                 disabled={!!editing}
                 onChange={(e) => setForm({ ...form, id: e.target.value })}
                 required
+                style={editing ? { opacity: 0.6, cursor: "not-allowed" } : undefined}
               />
-              <label className="field-label">Descripción</label>
+              {editing && (
+                <div style={{ fontSize: 11, color: "#94A3B8", marginTop: 2 }}>
+                  El código no puede modificarse después de creado.
+                </div>
+              )}
+              <label className="field-label">Nombre</label>
               <input
                 className="input"
                 value={form.nombre}
@@ -173,12 +202,6 @@ export default function Materiales({ materiales, reload }) {
                 value={form.costo}
                 onChange={(e) => setForm({ ...form, costo: e.target.value })}
                 required
-              />
-              <label className="field-label">Proveedor</label>
-              <input
-                className="input"
-                value={form.proveedor}
-                onChange={(e) => setForm({ ...form, proveedor: e.target.value })}
               />
 
               {error && (

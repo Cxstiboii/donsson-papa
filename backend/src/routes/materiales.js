@@ -16,13 +16,13 @@ router.get("/", async (req, res) => {
 
 router.post("/", async (req, res) => {
   try {
-    const { id, nombre, unidad, costo, proveedor } = req.body;
+    const { id, nombre, unidad, costo } = req.body;
     if (!id || !nombre || !unidad || costo == null) {
       return res.status(400).json({ error: "Faltan campos obligatorios" });
     }
 
     const material = await prisma.material.create({
-      data: { id, nombre, unidad, costo, proveedor: proveedor || "" },
+      data: { id, nombre, unidad, costo },
     });
     res.status(201).json(material);
   } catch (e) {
@@ -36,10 +36,10 @@ router.post("/", async (req, res) => {
 
 router.put("/:id", async (req, res) => {
   try {
-    const { nombre, unidad, costo, proveedor } = req.body;
+    const { nombre, unidad, costo } = req.body;
     const material = await prisma.material.update({
       where: { id: req.params.id },
-      data: { nombre, unidad, costo, proveedor },
+      data: { nombre, unidad, costo },
     });
     res.json(material);
   } catch (e) {
