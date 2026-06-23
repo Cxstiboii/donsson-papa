@@ -7,13 +7,24 @@ const router = express.Router();
 const prisma = new PrismaClient();
 const upload = multer({ storage: multer.memoryStorage() });
 
+function parseColombianNumber(val) {
+  if (val === null || val === undefined || val === "") return 0;
+  if (typeof val === "number") return isNaN(val) ? 0 : val;
+  const str = String(val).trim();
+  const cleaned = str.replace(/\./g, "").replace(/,/g, ".");
+  const n = parseFloat(cleaned);
+  return isNaN(n) ? 0 : n;
+}
+
 // Formato esperado: [CODIGO] NOMBRE DEL PRODUCTO (COD FAB)
+// También tolera corchete inicial faltante: CODIGO] NOMBRE...
 function parsearProducto(productoStr) {
   const str = String(productoStr).trim();
-  const codeMatch = str.match(/\[([^\]]+)\]/);
+  const codeMatch = str.match(/\[?([A-Za-z0-9_\-]+)\]/);
   if (!codeMatch) return null;
   const materialId = codeMatch[1].trim();
-  const afterCode = str.replace(/^\[[^\]]+\]\s*/, "");
+  if (!materialId) return null;
+  const afterCode = str.replace(/\[?[A-Za-z0-9_\-]+\]\s*/, "");
   const lastParen = afterCode.lastIndexOf("(");
   const nombre = lastParen > 0 ? afterCode.slice(0, lastParen).trim() : afterCode.trim();
   return { materialId, nombre };
@@ -43,10 +54,11 @@ router.post("/", upload.single("file"), async (req, res) => {
 
       const parsed = parsearProducto(productoRaw);
       if (!parsed) continue;
-      if (!parsed.materialId || parsed.materialId === "N/A" || !parsed.nombre) continue;
 
-      const cantidad = Number(row["Cantidad producto"]) || 0;
-      const costo = Number(row["Product Cost"]) || 0;
+      const cantidad = parseColombianNumber(row["Cantidad producto"]);
+      if (cantidad === 0) continue;
+
+      const costo = parseColombianNumber(row["Product Cost"]);
       const unidad = String(row["Unidad de medida del producto"] || "unidad").trim() || "unidad";
 
       materialesData.push({ id: parsed.materialId, nombre: parsed.nombre, unidad, costo, proveedor: "" });

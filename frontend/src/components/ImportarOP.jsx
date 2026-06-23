@@ -62,16 +62,15 @@ export default function ImportarOP({ reload }) {
   return (
     <div style={{ maxWidth: 560 }}>
       <h2 style={{ fontSize: 20, fontWeight: 700, color: "#1F3864", marginBottom: 6 }}>
-        Importar Orden de Producción desde Odoo
+        Importar Orden de Producción
       </h2>
       <p style={{ fontSize: 13, color: "var(--color-muted)", marginBottom: 20, lineHeight: 1.6 }}>
-        Sube el Excel de Odoo con las columnas de materiales de la OP. Se crearán o actualizarán los
-        materiales y la referencia destino con los consumos importados.
+        Sube el archivo Excel con los materiales de la OP. Se crearán o actualizarán los materiales y la referencia con los consumos importados.
       </p>
 
       <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
         <div>
-          <label style={labelStyle}>Archivo Excel de Odoo</label>
+          <label style={labelStyle}>Archivo Excel (.xlsx)</label>
           <input
             type="file"
             accept=".xlsx"

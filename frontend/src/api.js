@@ -84,12 +84,15 @@ export function calcCostos(ref, params) {
   };
 }
 
-export const COP = (v) =>
-  new Intl.NumberFormat("es-CO", {
+export function COP(v) {
+  if (v == null || isNaN(v)) return "$ 0,00";
+  return new Intl.NumberFormat("es-CO", {
     style: "currency",
     currency: "COP",
-    minimumFractionDigits: 0,
-  }).format(v || 0);
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(v);
+}
 
 export const mesLabel = (ym) => {
   if (!ym) return "—";
