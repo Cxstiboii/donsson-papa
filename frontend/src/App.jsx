@@ -38,7 +38,7 @@ const TABS = [
   { key: "parametros", label: "Parámetros", icon: Sliders },
   { key: "comparativo", label: "Comparativo Odoo", icon: GitCompare },
   { key: "graficos", label: "Gráficos", icon: LineChart },
-  { key: "importar", label: "Importar Odoo", icon: Upload },
+  // { key: "importar", label: "Importar Odoo", icon: Upload },
   { key: "importar-op", label: "Importar OP", icon: ClipboardList },
 ];
 
