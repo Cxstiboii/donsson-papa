@@ -9,7 +9,7 @@ const prisma = new PrismaClient();
 const upload = multer({ storage: multer.memoryStorage() });
 
 const EXPECTED_COLUMNS = [
-  "Tipo", "Orden", "Documento origen", "Fecha inicial", "Fecha final",
+  "Tipo", "Orden", "Documento origen",
   "Producto", "Ref donsson", "Producto clase", "Cantidad fabricada",
   "Insumo", "Costo mp",
   "Cant. x Ud. Planeado Standard", "Vr. x Ud. Planeado Standard",
@@ -49,28 +49,6 @@ function num(val, fallback = 0) {
   return isNaN(n) ? fallback : n;
 }
 
-function parseColombianDate(val) {
-  if (val == null || val === "") return null;
-  if (val instanceof Date) return isNaN(val.getTime()) ? null : val;
-  if (typeof val === "number") {
-    const info = XLSX.SSF.parse_date_code(val);
-    if (!info) return null;
-    return new Date(info.y, info.m - 1, info.d, info.H || 0, info.M || 0, info.S || 0);
-  }
-  const s = String(val).trim()
-    .replace(/a\.m\./i, "AM")
-    .replace(/p\.m\./i, "PM");
-  // DD/MM/YYYY HH:MM:SS AM/PM
-  const m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2}):(\d{2})\s*(AM|PM)?$/i);
-  if (!m) return null;
-  let hour = parseInt(m[4]);
-  const ampm = m[7];
-  if (ampm) {
-    if (ampm.toUpperCase() === "PM" && hour !== 12) hour += 12;
-    if (ampm.toUpperCase() === "AM" && hour === 12) hour = 0;
-  }
-  return new Date(parseInt(m[3]), parseInt(m[2]) - 1, parseInt(m[1]), hour, parseInt(m[5]), parseInt(m[6]));
-}
 
 function extractCode(productoStr) {
   const match = String(productoStr || "").match(/\[([^\]]+)\]/);
@@ -91,6 +69,11 @@ function variacionPct(varVal, base) {
 router.post("/", upload.single("file"), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: "Archivo requerido" });
+
+    const mes = (req.body.mes || "").trim();
+    if (!mes || !/^\d{4}-\d{2}$/.test(mes)) {
+      return res.status(400).json({ error: "El campo 'mes' es requerido (formato YYYY-MM)" });
+    }
 
     const wb = XLSX.read(req.file.buffer, { type: "buffer", cellDates: true });
     const ws = wb.Sheets[wb.SheetNames[0]];
@@ -118,8 +101,6 @@ router.post("/", upload.single("file"), async (req, res) => {
     const first = rows[0];
     const orden = String(first["Orden"] || "").trim();
     const documentoOrigen = String(first["Documento origen"] || "").trim();
-    const fechaInicial = parseColombianDate(first["Fecha inicial"]);
-    const fechaFinal = parseColombianDate(first["Fecha final"]);
     const productoRaw = String(first["Producto"] || "").trim();
     const refDonsson = String(first["Ref donsson"] || "").trim();
     const productoClase = String(first["Producto clase"] || "").trim();
@@ -308,8 +289,9 @@ router.post("/", upload.single("file"), async (req, res) => {
     }
 
     // ── Persist ───────────────────────────────────────────────────────────────
-    const ffDate = fechaFinal || new Date();
-    const mesFF = `${ffDate.getFullYear()}-${String(ffDate.getMonth() + 1).padStart(2, "0")}`;
+    const [mesYear, mesMonth] = mes.split("-").map(Number);
+    const fechaInicial = new Date(mesYear, mesMonth - 1, 1);
+    const fechaFinal = new Date(mesYear, mesMonth, 0, 23, 59, 59);
 
     const order = await prisma.$transaction(async (tx) => {
       await tx.costOrder.deleteMany({ where: { orden } });
@@ -322,8 +304,8 @@ router.post("/", upload.single("file"), async (req, res) => {
             id: refDonsson,
             nombre: productoRaw,
             familia: "",
-            mes: mesFF,
-            fechaCreacion: mesFF,
+            mes,
+            fechaCreacion: mes,
           },
           update: {},
         });
@@ -345,8 +327,8 @@ router.post("/", upload.single("file"), async (req, res) => {
           producto: productoRaw,
           productoCodigo: extractCode(productoRaw),
           productoClase, cantidadFabricada,
-          fechaInicial: fechaInicial || new Date(),
-          fechaFinal: ffDate,
+          fechaInicial,
+          fechaFinal,
           estado, totalPlaneado, totalEjecutado, totalVariacion,
           archivoFuente: req.file.originalname || "Detalle de Costos.xls",
           laborItems: { create: [cfItem, ...moItems] },

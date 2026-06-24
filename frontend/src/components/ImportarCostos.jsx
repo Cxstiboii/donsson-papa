@@ -492,6 +492,10 @@ export default function ImportarCostos() {
   const [orders, setOrders] = useState([]);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [file, setFile] = useState(null);
+  const [mes, setMes] = useState(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  });
   const [importing, setImporting] = useState(false);
   const [loadingOrders, setLoadingOrders] = useState(true);
   const [importResult, setImportResult] = useState(null); // { warnings, order }
@@ -514,7 +518,7 @@ export default function ImportarCostos() {
 
   async function handleImport(e) {
     e.preventDefault();
-    if (!file) return;
+    if (!file || !mes) return;
 
     setImporting(true);
     setImportResult(null);
@@ -523,6 +527,7 @@ export default function ImportarCostos() {
     try {
       const fd = new FormData();
       fd.append("file", file);
+      fd.append("mes", mes);
 
       const res = await fetch("/api/importar-costos", {
         method: "POST",
@@ -594,23 +599,37 @@ export default function ImportarCostos() {
           <Upload size={14} style={{ display: "inline", marginRight: 6, verticalAlign: "middle" }} />
           Importar archivo Excel (.xls)
         </div>
-        <form onSubmit={handleImport} style={{ display: "flex", gap: 10, alignItems: "flex-start", flexWrap: "wrap" }}>
-          <input
-            id="costos-file-input"
-            type="file"
-            accept=".xls,.xlsx"
-            className="input"
-            style={{ flex: "1 1 280px" }}
-            onChange={(e) => {
-              setFile(e.target.files?.[0] || null);
-              setImportResult(null);
-              setImportErrors(null);
-            }}
-          />
+        <form onSubmit={handleImport} style={{ display: "flex", gap: 10, alignItems: "flex-end", flexWrap: "wrap" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            <label style={{ fontSize: 12, fontWeight: 600, color: "#374151" }}>Mes</label>
+            <input
+              type="month"
+              className="input"
+              value={mes}
+              required
+              onChange={(e) => setMes(e.target.value)}
+              style={{ minWidth: 160 }}
+            />
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 4, flex: "1 1 280px" }}>
+            <label style={{ fontSize: 12, fontWeight: 600, color: "#374151" }}>Archivo Excel (.xls)</label>
+            <input
+              id="costos-file-input"
+              type="file"
+              accept=".xls,.xlsx"
+              className="input"
+              style={{ width: "100%" }}
+              onChange={(e) => {
+                setFile(e.target.files?.[0] || null);
+                setImportResult(null);
+                setImportErrors(null);
+              }}
+            />
+          </div>
           <button
             type="submit"
             className="btn btn-primary"
-            disabled={!file || importing}
+            disabled={!file || !mes || importing}
             style={{ display: "inline-flex", alignItems: "center", gap: 8, flexShrink: 0 }}
           >
             <Upload size={15} />
