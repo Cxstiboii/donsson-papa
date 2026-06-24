@@ -22,6 +22,7 @@ import Comparativo from "./components/Comparativo.jsx";
 import TabGraficos from "./TabGraficos.jsx";
 import ImportarOdoo from "./components/ImportarOdoo.jsx";
 import ImportarOP from "./components/ImportarOP.jsx";
+import ImportarCostos from "./components/ImportarCostos.jsx";
 import {
   getToken,
   clearToken,
@@ -30,6 +31,7 @@ import {
   parametrosApi,
   calcCostos,
   mesLabel,
+  costosApi,
 } from "./api.js";
 
 const TABS = [
@@ -40,6 +42,7 @@ const TABS = [
   { key: "graficos", label: "Gráficos", icon: LineChart },
   // { key: "importar", label: "Importar Odoo", icon: Upload },
   { key: "importar-op", label: "Importar OP", icon: ClipboardList },
+  { key: "costos-produccion", label: "Costos Producción", icon: Factory },
 ];
 
 export default function App() {
@@ -209,6 +212,9 @@ export default function App() {
             )}
             {tab === "importar-op" && (
               <ImportarOP reload={loadAll} />
+            )}
+            {tab === "costos-produccion" && (
+              <ImportarCostos />
             )}
           </>
         )}

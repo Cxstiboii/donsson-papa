@@ -106,6 +106,12 @@ export const UNIDADES = [
   "cm", "mm", "gramo", "par", "set", "lámina", "tubo", "varilla",
 ];
 
+export const costosApi = {
+  list: () => request("/importar-costos"),
+  get: (id) => request(`/importar-costos/${id}`),
+  remove: (id) => request(`/importar-costos/${id}`, { method: "DELETE" }),
+};
+
 export const COLORS = {
   azulOscuro: "#1F3864",
   azulMedio: "#2E75B6",

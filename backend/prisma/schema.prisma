@@ -54,3 +54,62 @@ model Usuario {
   id           Int    @id @default(1)
   passwordHash String
 }
+
+model CostOrder {
+  id                Int            @id @default(autoincrement())
+  orden             String         @unique
+  documentoOrigen   String
+  refDonsson        String
+  producto          String
+  productoCodigo    String
+  productoClase     String
+  cantidadFabricada Float
+  fechaInicial      DateTime
+  fechaFinal        DateTime
+  estado            String
+  totalPlaneado     Float
+  totalEjecutado    Float
+  totalVariacion    Float
+  fechaImportacion  DateTime       @default(now())
+  archivoFuente     String
+  laborItems        CostLabor[]
+  materials         CostMaterial[]
+}
+
+model CostLabor {
+  id                  Int       @id @default(autoincrement())
+  orderId             Int
+  order               CostOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  tipo                String
+  proceso             String
+  cantStd             Float?
+  vrStd               Float?
+  tarifaStd           Float?
+  cantPlaneado        Float
+  vrPlaneado          Float
+  tarifaPlaneada      Float?
+  cantEjecutado       Float
+  vrEjecutado         Float
+  tarifaEjecutada     Float?
+  variacionCantidad   Float
+  variacionValor      Float
+  variacionPct        Float
+  eficienciaTiempoPct Float?
+  alertaTarifa        Boolean   @default(false)
+}
+
+model CostMaterial {
+  id                Int       @id @default(autoincrement())
+  orderId           Int
+  order             CostOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  insumo            String
+  costoMp           Float
+  cantPlaneado      Float
+  vrPlaneado        Float
+  cantEjecutado     Float
+  vrEjecutado       Float
+  variacionCantidad Float
+  variacionValor    Float
+  variacionPct      Float
+  alertaCantidad    Boolean   @default(false)
+}
