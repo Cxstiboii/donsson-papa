@@ -126,9 +126,9 @@ function TablaMateriasImportadas({ materials }) {
           <tr style={{ background: "#EEF2FF", fontWeight: 700, borderTop: "2px solid var(--color-border)" }}>
             <td colSpan={3} style={{ ...TD, fontSize: 12, color: "var(--color-muted)", textAlign: "right" }}>Total MPD (Std)</td>
             <td style={{ ...TD, textAlign: "right", color: "#1F3864" }}>
-              {COP(materials.reduce((s, m) => s + (m.vrStd ?? 0), 0))}
+              {COP(materials.reduce((s, m) => s + (m.vrPlaneado ?? 0), 0))}
             </td>
-            <td colSpan={2} style={{ ...TD, fontSize: 12, color: "var(--color-muted)", textAlign: "right" }}>Total MPD (Plan)</td>
+            <td colSpan={2} style={{ ...TD, fontSize: 12, color: "var(--color-muted)", textAlign: "right" }}>Total MPD (Ejec)</td>
             <td style={{ ...TD, textAlign: "right" }}>
               {COP(materials.reduce((s, m) => s + (m.vrPlaneado ?? 0), 0))}
             </td>

@@ -28,7 +28,7 @@ function agregarCostosImportados(ref, ordersByCode) {
   const laborAll = [];
 
   for (const order of related) {
-    for (const m of order.materials) mpd += m.vrStd ?? 0;
+    for (const m of order.materials) mpd += m.vrPlaneado ?? 0;
     for (const l of order.laborItems) {
       if (l.tipo === "mano_obra") mod += l.vrStd ?? 0;
       else if (l.tipo === "carga_fabril") cif += l.vrStd ?? 0;
