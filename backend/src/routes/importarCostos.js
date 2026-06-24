@@ -275,8 +275,26 @@ router.post("/", upload.single("file"), async (req, res) => {
     }
 
     // ── Persist ───────────────────────────────────────────────────────────────
+    const ffDate = fechaFinal || new Date();
+    const mesFF = `${ffDate.getFullYear()}-${String(ffDate.getMonth() + 1).padStart(2, "0")}`;
+
     const order = await prisma.$transaction(async (tx) => {
       await tx.costOrder.deleteMany({ where: { orden } });
+
+      // Auto-crear Referencia si no existe todavía
+      if (refDonsson) {
+        await tx.referencia.upsert({
+          where: { id: refDonsson },
+          create: {
+            id: refDonsson,
+            nombre: productoRaw,
+            familia: "",
+            mes: mesFF,
+            fechaCreacion: mesFF,
+          },
+          update: {},
+        });
+      }
 
       return tx.costOrder.create({
         data: {
@@ -285,7 +303,7 @@ router.post("/", upload.single("file"), async (req, res) => {
           productoCodigo: extractCode(productoRaw),
           productoClase, cantidadFabricada,
           fechaInicial: fechaInicial || new Date(),
-          fechaFinal: fechaFinal || new Date(),
+          fechaFinal: ffDate,
           estado, totalPlaneado, totalEjecutado, totalVariacion,
           archivoFuente: req.file.originalname || "Detalle de Costos.xls",
           laborItems: { create: [cfItem, ...moItems] },
