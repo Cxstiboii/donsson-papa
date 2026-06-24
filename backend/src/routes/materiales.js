@@ -85,6 +85,8 @@ router.post("/importar-csv", upload.single("archivo"), async (req, res) => {
     return res.status(400).json({ error: "No se pudo leer el archivo CSV" });
   }
 
+  await prisma.material.deleteMany();
+
   let creados = 0;
   let actualizados = 0;
   let omitidos = 0;
@@ -96,12 +98,7 @@ router.post("/importar-csv", upload.single("archivo"), async (req, res) => {
     const precioRaw = row["standard_price"];
     const unidad = row["Unidad"] ? String(row["Unidad"]).trim() : null;
 
-    if (precioRaw == null || precioRaw === "") {
-      omitidos++;
-      continue;
-    }
-
-    const costo = parseFloat(precioRaw);
+    const costo = (precioRaw == null || precioRaw === "") ? 0 : parseFloat(precioRaw);
     if (isNaN(costo)) {
       omitidos++;
       continue;
