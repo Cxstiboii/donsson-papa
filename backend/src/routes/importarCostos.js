@@ -132,6 +132,12 @@ router.post("/", upload.single("file"), async (req, res) => {
     const rowsCF = rows.filter((r) => String(r["Tipo"]).trim() === "Carga fabril");
     const rowsMP = rows.filter((r) => String(r["Tipo"]).trim() === "Materia prima");
 
+    // ── Load material catalog for price lookup ────────────────────────────────
+    const allMaterials = await prisma.material.findMany();
+    const materialMap = new Map(
+      allMaterials.map((m) => [m.nombre.trim().toLowerCase(), m])
+    );
+
     // ── Hard validations ──────────────────────────────────────────────────────
     const errors = [];
     const warnings = [];
@@ -152,9 +158,13 @@ router.post("/", upload.single("file"), async (req, res) => {
       warnings.push(`Procesos de MO no estándar encontrados: ${procesosExtra.join(", ")}`);
     }
 
-    const mpInvalidas = rowsMP.filter((r) => isNullish(r["Costo mp"]) || num(r["Costo mp"]) === 0);
+    // Only flag as invalid if material is also absent from catalog (no fallback at all)
+    const mpInvalidas = rowsMP.filter((r) => {
+      const key = String(r["Insumo"] || "").trim().toLowerCase();
+      return !materialMap.has(key) && (isNullish(r["Costo mp"]) || num(r["Costo mp"]) === 0);
+    });
     if (mpInvalidas.length > 0) {
-      errors.push(`Materias primas con Costo mp inválido: ${mpInvalidas.map((r) => r["Insumo"]).join(", ")}`);
+      errors.push(`Materias primas sin costo en catálogo ni en Excel: ${mpInvalidas.map((r) => r["Insumo"]).join(", ")}`);
     }
 
     if (errors.length > 0) {
@@ -232,23 +242,41 @@ router.post("/", upload.single("file"), async (req, res) => {
     });
 
     // ── Process Materia Prima ─────────────────────────────────────────────────
+    const materialesEncontrados = [];
+    const materialesNoEncontrados = [];
+
     const mpItems = rowsMP.map((r) => {
-      const costoMp = num(r["Costo mp"]);
+      const insumoNombre = String(r["Insumo"] || "").trim();
+      const key = insumoNombre.toLowerCase();
+      const materialCatalogo = materialMap.get(key);
+
+      let costoMp;
+      if (materialCatalogo) {
+        costoMp = materialCatalogo.costo;
+        materialesEncontrados.push(insumoNombre);
+      } else {
+        costoMp = num(r["Costo mp"]);
+        materialesNoEncontrados.push(insumoNombre);
+        warnings.push(`Material "${insumoNombre}" no encontrado en catálogo; se usó Costo mp del Excel ($${costoMp})`);
+      }
+
       const cantStd = parseNum(r["Cant. x Ud. Planeado Standard"]);
       const vrStd = parseNum(r["Vr. x Ud. Planeado Standard"]);
       const cantPlan = num(r["Cant. x Ud. Planeado"]);
-      const vrPlan = num(r["Vr. x Ud. Planeado"]);
       const cantEjec = num(r["Cant. x Ud. Ejecutado"]);
-      const vrEjec = num(r["Vr. x Ud. Ejecutado"]);
+
+      // Recalculate values using catalog price (or Excel fallback)
+      const vrPlan = cantPlan * costoMp;
+      const vrEjec = cantEjec * costoMp;
       const varVal = vrEjec - vrPlan;
       const alertaCantidad = cantPlan > 0 && cantEjec > cantPlan * 1.20;
 
       if (alertaCantidad) {
-        warnings.push(`Sobreconsumo MP "${r["Insumo"]}": ${cantEjec.toFixed(4)} ejecutado vs ${cantPlan.toFixed(4)} planeado (>20%)`);
+        warnings.push(`Sobreconsumo MP "${insumoNombre}": ${cantEjec.toFixed(4)} ejecutado vs ${cantPlan.toFixed(4)} planeado (>20%)`);
       }
 
       return {
-        insumo: String(r["Insumo"] || "").trim(),
+        insumo: insumoNombre,
         costoMp,
         cantStd: isNaN(cantStd) ? null : cantStd,
         vrStd: isNaN(vrStd) ? null : vrStd,
@@ -313,7 +341,15 @@ router.post("/", upload.single("file"), async (req, res) => {
       });
     });
 
-    res.json({ success: true, warnings, order });
+    res.json({
+      success: true,
+      warnings,
+      catalogoLookup: {
+        encontrados: materialesEncontrados,
+        noEncontrados: materialesNoEncontrados,
+      },
+      order,
+    });
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: "Error al importar costos: " + e.message });
