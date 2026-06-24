@@ -294,9 +294,17 @@ router.post("/", upload.single("file"), async (req, res) => {
     const fechaInicial = new Date(mesYear, mesMonth - 1, 1);
     const fechaFinal = new Date(mesYear, mesMonth, 0, 23, 59, 59);
 
-    const order = await prisma.$transaction(async (tx) => {
-      await tx.costOrder.deleteMany({ where: { orden } });
+    const orderData = {
+      documentoOrigen, refDonsson,
+      producto: productoRaw,
+      productoCodigo: extractCode(productoRaw),
+      productoClase, cantidadFabricada,
+      fechaInicial, fechaFinal,
+      estado, totalPlaneado, totalEjecutado, totalVariacion,
+      archivoFuente: req.file.originalname || "Detalle de Costos.xls",
+    };
 
+    const order = await prisma.$transaction(async (tx) => {
       // Crear o actualizar Referencia (actualiza mes y nombre en re-importaciones)
       if (refDonsson) {
         await tx.referencia.upsert({
@@ -316,8 +324,7 @@ router.post("/", upload.single("file"), async (req, res) => {
       for (const [nombre, costo] of materialesParaCrear) {
         const existe = await tx.material.findFirst({ where: { nombre } });
         if (!existe) {
-          // Before auto-creating a material, find the highest existing AUTO-NNN ID
-          const autoMaterials = await prisma.material.findMany({
+          const autoMaterials = await tx.material.findMany({
             where: { id: { startsWith: "AUTO-" } },
             select: { id: true },
             orderBy: { id: "desc" },
@@ -332,22 +339,44 @@ router.post("/", upload.single("file"), async (req, res) => {
         }
       }
 
-      return tx.costOrder.create({
-        data: {
-          orden, documentoOrigen, refDonsson,
-          producto: productoRaw,
-          productoCodigo: extractCode(productoRaw),
-          productoClase, cantidadFabricada,
-          fechaInicial,
-          fechaFinal,
-          estado, totalPlaneado, totalEjecutado, totalVariacion,
-          archivoFuente: req.file.originalname || "Detalle de Costos.xls",
-          laborItems: { create: [cfItem, ...moItems] },
-          materials: { create: mpItems },
-        },
+      // Upsert CostOrder por campo único `orden`
+      const savedOrder = await tx.costOrder.upsert({
+        where: { orden },
+        create: { orden, ...orderData },
+        update: orderData,
+      });
+
+      // Upsert CostLabor por (orderId, proceso)
+      for (const item of [cfItem, ...moItems]) {
+        await tx.costLabor.upsert({
+          where: { orderId_proceso: { orderId: savedOrder.id, proceso: item.proceso } },
+          create: { orderId: savedOrder.id, ...item },
+          update: item,
+        });
+      }
+
+      // Upsert CostMaterial por (orderId, insumo)
+      for (const item of mpItems) {
+        await tx.costMaterial.upsert({
+          where: { orderId_insumo: { orderId: savedOrder.id, insumo: item.insumo } },
+          create: { orderId: savedOrder.id, ...item },
+          update: item,
+        });
+      }
+
+      return tx.costOrder.findUnique({
+        where: { id: savedOrder.id },
         include: { laborItems: true, materials: true },
       });
     });
+
+    // Para limpiar duplicados existentes si los hubiera antes de este fix:
+    // DELETE FROM "CostMaterial" WHERE id NOT IN (
+    //   SELECT MIN(id) FROM "CostMaterial" GROUP BY "orderId", insumo
+    // );
+    // DELETE FROM "CostLabor" WHERE id NOT IN (
+    //   SELECT MIN(id) FROM "CostLabor" GROUP BY "orderId", proceso
+    // );
 
     res.json({
       success: true,

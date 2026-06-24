@@ -102,6 +102,8 @@ model CostLabor {
   variacionPct        Float
   eficienciaTiempoPct Float?
   alertaTarifa        Boolean   @default(false)
+
+  @@unique([orderId, proceso])
 }
 
 model CostMaterial {
@@ -120,4 +122,6 @@ model CostMaterial {
   variacionValor    Float
   variacionPct      Float
   alertaCantidad    Boolean   @default(false)
+
+  @@unique([orderId, insumo])
 }
