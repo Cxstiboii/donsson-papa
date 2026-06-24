@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Plus, Pencil, Trash2, Boxes, AlertCircle, X } from "lucide-react";
+import { useState, useRef } from "react";
+import { Plus, Pencil, Trash2, Boxes, AlertCircle, X, Upload } from "lucide-react";
 import { materialesApi, COP, UNIDADES } from "../api.js";
 
 const OTRA_UNIDAD = "__otra__";
@@ -24,6 +24,26 @@ export default function Materiales({ materiales, reload }) {
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const [busqueda, setBusqueda] = useState("");
+  const [importando, setImportando] = useState(false);
+  const [importResult, setImportResult] = useState(null);
+  const csvInputRef = useRef(null);
+
+  async function handleImportCSV(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    e.target.value = "";
+    setImportando(true);
+    setImportResult(null);
+    try {
+      const result = await materialesApi.importarCSV(file);
+      setImportResult({ ok: true, ...result });
+      await reload();
+    } catch (err) {
+      setImportResult({ ok: false, error: err.message });
+    } finally {
+      setImportando(false);
+    }
+  }
 
   const materialesFiltrados = materiales.filter((m) =>
     m.nombre.toLowerCase().includes(busqueda.toLowerCase())
@@ -94,12 +114,56 @@ export default function Materiales({ materiales, reload }) {
 
   return (
     <div>
-      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 16 }}>
+      <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginBottom: 16 }}>
+        <input
+          ref={csvInputRef}
+          type="file"
+          accept=".csv"
+          style={{ display: "none" }}
+          onChange={handleImportCSV}
+        />
+        <button
+          onClick={() => { setImportResult(null); csvInputRef.current.click(); }}
+          className="btn btn-secondary"
+          disabled={importando}
+        >
+          <Upload size={20} />
+          {importando ? "Importando…" : "Importar CSV"}
+        </button>
         <button onClick={openCreate} className="btn btn-primary">
           <Plus size={20} />
           Nuevo material
         </button>
       </div>
+
+      {importResult && (
+        <div
+          className={`alert ${importResult.ok ? "alert-success" : "alert-error"}`}
+          style={{ marginBottom: 12, display: "flex", alignItems: "flex-start", gap: 8 }}
+        >
+          <AlertCircle size={16} style={{ flexShrink: 0, marginTop: 2 }} />
+          <div>
+            {importResult.ok ? (
+              <span>
+                Importación completada: <strong>{importResult.creados}</strong> creados,{" "}
+                <strong>{importResult.actualizados}</strong> actualizados,{" "}
+                <strong>{importResult.omitidos}</strong> omitidos.
+                {importResult.errores?.length > 0 && (
+                  <span> {importResult.errores.length} error(es): {importResult.errores.slice(0, 3).join(" | ")}</span>
+                )}
+              </span>
+            ) : (
+              <span>Error al importar: {importResult.error}</span>
+            )}
+          </div>
+          <button
+            onClick={() => setImportResult(null)}
+            style={{ marginLeft: "auto", background: "none", border: "none", cursor: "pointer", padding: 0 }}
+          >
+            <X size={16} />
+          </button>
+        </div>
+      )}
 
       <input
         type="text"

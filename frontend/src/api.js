@@ -45,6 +45,20 @@ export const materialesApi = {
   create: (data) => request("/materiales", { method: "POST", body: JSON.stringify(data) }),
   update: (id, data) => request(`/materiales/${id}`, { method: "PUT", body: JSON.stringify(data) }),
   remove: (id) => request(`/materiales/${id}`, { method: "DELETE" }),
+  importarCSV: async (file) => {
+    const token = getToken();
+    const form = new FormData();
+    form.append("archivo", file);
+    const res = await fetch("/api/materiales/importar-csv", {
+      method: "POST",
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: form,
+    });
+    if (res.status === 401) { clearToken(); window.location.reload(); throw new Error("Sesión expirada"); }
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || "Error en la solicitud");
+    return data;
+  },
 };
 
 export const referenciasApi = {
