@@ -66,15 +66,15 @@ router.get("/", async (req, res) => {
     const ids = referencias.map((r) => r.id);
     const orders = ids.length
       ? await prisma.costOrder.findMany({
-          where: { productoCodigo: { in: ids } },
+          where: { refDonsson: { in: ids } },
           include: { laborItems: true, materials: true },
         })
       : [];
 
     const ordersByCode = {};
     for (const o of orders) {
-      if (!ordersByCode[o.productoCodigo]) ordersByCode[o.productoCodigo] = [];
-      ordersByCode[o.productoCodigo].push(o);
+      if (!ordersByCode[o.refDonsson]) ordersByCode[o.refDonsson] = [];
+      ordersByCode[o.refDonsson].push(o);
     }
 
     const enriched = referencias.map((ref) => agregarCostosImportados(ref, ordersByCode));

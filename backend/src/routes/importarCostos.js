@@ -163,8 +163,8 @@ router.post("/", upload.single("file"), async (req, res) => {
 
     // ── Process Carga Fabril ──────────────────────────────────────────────────
     const cfRow = rowsCF[0];
-    const cfCantStd = num(cfRow["Cant. x Ud. Planeado Standard"]);
-    const cfVrStd = num(cfRow["Vr. x Ud. Planeado Standard"]);
+    const cfCantStd = parseNum(cfRow["Cant. x Ud. Planeado Standard"]);
+    const cfVrStd = parseNum(cfRow["Vr. x Ud. Planeado Standard"]);
     const cfCantPlan = num(cfRow["Cant. x Ud. Planeado"]);
     const cfVrPlan = num(cfRow["Vr. x Ud. Planeado"]);
     const cfCantEjec = num(cfRow["Cant. x Ud. Ejecutado"]);
@@ -181,7 +181,9 @@ router.post("/", upload.single("file"), async (req, res) => {
     const cfItem = {
       tipo: "carga_fabril",
       proceso: String(cfRow["Insumo"] || "CARGA FABRIL").trim(),
-      cantStd: cfCantStd, vrStd: cfVrStd, tarifaStd: cfTarifaStd,
+      cantStd: isNaN(cfCantStd) ? null : cfCantStd,
+      vrStd: isNaN(cfVrStd) ? null : cfVrStd,
+      tarifaStd: cfTarifaStd,
       cantPlaneado: cfCantPlan, vrPlaneado: cfVrPlan, tarifaPlaneada: cfTarifaPlan,
       cantEjecutado: cfCantEjec, vrEjecutado: cfVrEjec, tarifaEjecutada: cfTarifaEjec,
       variacionCantidad: cfCantEjec - cfCantPlan,
@@ -193,8 +195,8 @@ router.post("/", upload.single("file"), async (req, res) => {
 
     // ── Process Mano de Obra ──────────────────────────────────────────────────
     const moItems = rowsMO.map((r) => {
-      const cantStd = num(r["Cant. x Ud. Planeado Standard"]);
-      const vrStd = num(r["Vr. x Ud. Planeado Standard"]);
+      const cantStd = parseNum(r["Cant. x Ud. Planeado Standard"]);
+      const vrStd = parseNum(r["Vr. x Ud. Planeado Standard"]);
       const cantPlan = num(r["Cant. x Ud. Planeado"]);
       const vrPlan = num(r["Vr. x Ud. Planeado"]);
       const cantEjec = num(r["Cant. x Ud. Ejecutado"]);
@@ -216,7 +218,9 @@ router.post("/", upload.single("file"), async (req, res) => {
       return {
         tipo: "mano_obra",
         proceso: String(r["Insumo"] || "").trim(),
-        cantStd, vrStd, tarifaStd,
+        cantStd: isNaN(cantStd) ? null : cantStd,
+        vrStd: isNaN(vrStd) ? null : vrStd,
+        tarifaStd,
         cantPlaneado: cantPlan, vrPlaneado: vrPlan, tarifaPlaneada: tarifaPlan,
         cantEjecutado: cantEjec, vrEjecutado: vrEjec, tarifaEjecutada: tarifaEjec,
         variacionCantidad: cantEjec - cantPlan,
@@ -230,8 +234,8 @@ router.post("/", upload.single("file"), async (req, res) => {
     // ── Process Materia Prima ─────────────────────────────────────────────────
     const mpItems = rowsMP.map((r) => {
       const costoMp = num(r["Costo mp"]);
-      const cantStd = num(r["Cant. x Ud. Planeado Standard"]);
-      const vrStd = num(r["Vr. x Ud. Planeado Standard"]);
+      const cantStd = parseNum(r["Cant. x Ud. Planeado Standard"]);
+      const vrStd = parseNum(r["Vr. x Ud. Planeado Standard"]);
       const cantPlan = num(r["Cant. x Ud. Planeado"]);
       const vrPlan = num(r["Vr. x Ud. Planeado"]);
       const cantEjec = num(r["Cant. x Ud. Ejecutado"]);

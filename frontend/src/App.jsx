@@ -29,7 +29,7 @@ import {
   materialesApi,
   referenciasApi,
   parametrosApi,
-  calcCostos,
+  calcCostosEstandar,
   mesLabel,
   costosApi,
 } from "./api.js";
@@ -89,9 +89,12 @@ export default function App() {
 
   const kpis = useMemo(() => {
     if (!parametros) return null;
-    const conOdoo = referenciasFiltradas.filter((r) => r.costoReal > 0);
+    const conOdoo = referenciasFiltradas.filter((r) => {
+      const c = calcCostosEstandar(r, parametros);
+      return c.costoOdoo > 0;
+    });
     const alertas = conOdoo.filter((r) => {
-      const { variacion } = calcCostos(r, parametros);
+      const { variacion } = calcCostosEstandar(r, parametros);
       return variacion != null && Math.abs(variacion) > 10;
     });
     return {
