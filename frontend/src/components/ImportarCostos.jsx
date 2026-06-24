@@ -470,7 +470,7 @@ function OrderList({ orders, onSelect, onDelete }) {
 
 // ── Main Component ────────────────────────────────────────────────────────────
 
-export default function ImportarCostos() {
+export default function ImportarCostos({ reload }) {
   const [orders, setOrders] = useState([]);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [file, setFile] = useState(null);
@@ -531,10 +531,9 @@ export default function ImportarCostos() {
 
       setImportResult(data);
       setFile(null);
-      // reset file input
       if (fileInputRef.current) fileInputRef.current.value = "";
       await loadOrders();
-      // Auto-select the imported order
+      if (reload) await reload();
       if (data.order) setSelectedOrder(data.order);
     } catch (err) {
       setImportErrors({ errors: [err.message], warnings: [] });
@@ -655,6 +654,18 @@ export default function ImportarCostos() {
                 {importResult.order && ` — ${COP(importResult.order.totalEjecutado)} ejecutado`}
               </span>
             </div>
+            {importResult.materialesCreados?.length > 0 && (
+              <div style={{
+                display: "flex", gap: 8, marginBottom: 4,
+                background: "#FEF3C7", border: "1px solid #F59E0B",
+                borderRadius: 6, padding: "8px 12px",
+              }}>
+                <AlertTriangle size={15} style={{ flexShrink: 0, color: "#92400E", marginTop: 1 }} />
+                <span style={{ fontSize: 13, color: "#92400E" }}>
+                  Se crearon {importResult.materialesCreados.length} material{importResult.materialesCreados.length !== 1 ? "es" : ""} nuevo{importResult.materialesCreados.length !== 1 ? "s" : ""}: {importResult.materialesCreados.map((m) => m.id).join(", ")}. Puedes editarlos en la sección Materiales.
+                </span>
+              </div>
+            )}
             {importResult.warnings?.map((w, i) => (
               <div key={i} style={{
                 display: "flex", gap: 8, marginBottom: 4,

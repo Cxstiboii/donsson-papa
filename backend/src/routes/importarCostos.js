@@ -66,6 +66,15 @@ function variacionPct(varVal, base) {
   return (varVal / base) * 100;
 }
 
+function inferirFamilia(refCode) {
+  const c = String(refCode || "").trim().toUpperCase();
+  if (/^AAA/.test(c)) return "AAA";
+  if (/^A/.test(c)) return "A";
+  if (/^B/.test(c)) return "B";
+  if (/^C/.test(c)) return "C";
+  return "SIN_CLASIFICAR";
+}
+
 // ── POST / ─ Import Excel ─────────────────────────────────────────────────────
 router.post("/", upload.single("file"), async (req, res) => {
   try {
@@ -252,9 +261,11 @@ router.post("/", upload.single("file"), async (req, res) => {
       const cantPlan = num(r["Cant. x Ud. Planeado"]);
       const cantEjec = num(r["Cant. x Ud. Ejecutado"]);
 
-      // Recalculate values using catalog price (or Excel fallback)
-      const vrPlan = cantPlan * costoMp;
-      const vrEjec = cantEjec * costoMp;
+      // Use Excel monetary values directly; fall back to recalculation if missing
+      const vrPlanExcel = num(r["Vr. x Ud. Planeado"]);
+      const vrEjecExcel = num(r["Vr. x Ud. Ejecutado"]);
+      const vrPlan = vrPlanExcel > 0 ? vrPlanExcel : cantPlan * costoMp;
+      const vrEjec = vrEjecExcel > 0 ? vrEjecExcel : cantEjec * costoMp;
       const varVal = vrEjec - vrPlan;
       const alertaCantidad = cantPlan > 0 && cantEjec > cantPlan * 1.20;
 
@@ -289,6 +300,10 @@ router.post("/", upload.single("file"), async (req, res) => {
       warnings.push(`Total ejecutado supera en >15% al total planeado (${((totalVariacion / totalPlaneado) * 100).toFixed(1)}%)`);
     }
 
+    // ── MOD y CIF estándar para poblar Referencia.segMOD / cifUnitario ────────
+    const totalModVrStd = moItems.reduce((s, x) => s + (x.vrStd != null ? x.vrStd : (x.vrPlaneado ?? 0)), 0);
+    const cifVrStd = cfItem.vrStd != null ? cfItem.vrStd : (cfItem.vrPlaneado ?? 0);
+
     // ── Persist ───────────────────────────────────────────────────────────────
     const [mesYear, mesMonth] = mes.split("-").map(Number);
     const fechaInicial = new Date(mesYear, mesMonth - 1, 1);
@@ -304,23 +319,35 @@ router.post("/", upload.single("file"), async (req, res) => {
       archivoFuente: req.file.originalname || "Detalle de Costos.xls",
     };
 
-    const order = await prisma.$transaction(async (tx) => {
-      // Crear o actualizar Referencia (actualiza mes y nombre en re-importaciones)
+    const { order, materialesCreados } = await prisma.$transaction(async (tx) => {
+      // Crear o actualizar Referencia — respeta familia si ya fue clasificada
       if (refDonsson) {
+        const existingRef = await tx.referencia.findUnique({
+          where: { id: refDonsson },
+          select: { familia: true },
+        });
+        const familiaParaUsar =
+          existingRef?.familia && existingRef.familia !== "SIN_CLASIFICAR" && existingRef.familia !== ""
+            ? existingRef.familia
+            : inferirFamilia(refDonsson);
+
         await tx.referencia.upsert({
           where: { id: refDonsson },
           create: {
             id: refDonsson,
             nombre: productoRaw,
-            familia: "SIN_CLASIFICAR",
+            familia: familiaParaUsar,
             mes,
             fechaCreacion: mes,
+            segMOD: totalModVrStd,
+            cifUnitario: cifVrStd,
           },
-          update: { mes, nombre: productoRaw },
+          update: { mes, nombre: productoRaw, segMOD: totalModVrStd, cifUnitario: cifVrStd, familia: familiaParaUsar },
         });
       }
 
-      // Auto-crear materiales faltantes en el catálogo
+      // Auto-crear materiales faltantes en el catálogo y registrarlos
+      const creados = [];
       for (const [nombre, costo] of materialesParaCrear) {
         const existe = await tx.material.findFirst({ where: { nombre } });
         if (!existe) {
@@ -336,6 +363,7 @@ router.post("/", upload.single("file"), async (req, res) => {
           await tx.material.create({
             data: { id: newId, nombre, unidad: "", costo, proveedor: "" },
           });
+          creados.push({ id: newId, nombre, costo });
         }
       }
 
@@ -364,10 +392,11 @@ router.post("/", upload.single("file"), async (req, res) => {
         });
       }
 
-      return tx.costOrder.findUnique({
+      const finalOrder = await tx.costOrder.findUnique({
         where: { id: savedOrder.id },
         include: { laborItems: true, materials: true },
       });
+      return { order: finalOrder, materialesCreados: creados };
     });
 
     // Para limpiar duplicados existentes si los hubiera antes de este fix:
@@ -386,6 +415,7 @@ router.post("/", upload.single("file"), async (req, res) => {
         noEncontrados: materialesNoEncontrados,
       },
       order,
+      materialesCreados,
     });
   } catch (e) {
     console.error("Error al importar costos:", e);

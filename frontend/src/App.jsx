@@ -182,7 +182,7 @@ export default function App() {
             )}
             {tab === "materiales" && <Materiales materiales={materiales} reload={loadAll} />}
             {tab === "costos-produccion" && (
-              <ImportarCostos />
+              <ImportarCostos reload={loadAll} />
             )}
           </>
         )}

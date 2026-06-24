@@ -85,11 +85,11 @@ function TablaMateriasImportadas({ materials }) {
               <tr key={m.id} style={{ background: rowBg, borderBottom: "1px solid var(--color-border)" }}>
                 <td style={{ ...TD, fontWeight: 500 }}>{m.insumo}</td>
                 <td style={{ ...TD, textAlign: "right" }}>{COP(m.costoMp)}</td>
-                <td style={{ ...TD, textAlign: "right" }}>{fmt(m.cantStd)}</td>
+                <td style={{ ...TD, textAlign: "right" }}>{fmt(m.cantStd, 4)}</td>
                 <td style={{ ...TD, textAlign: "right", fontWeight: 600, color: "#1F3864" }}>{COP(m.vrStd)}</td>
-                <td style={{ ...TD, textAlign: "right" }}>{fmt(m.cantPlaneado)}</td>
+                <td style={{ ...TD, textAlign: "right" }}>{fmt(m.cantPlaneado, 4)}</td>
                 <td style={{ ...TD, textAlign: "right" }}>{COP(m.vrPlaneado)}</td>
-                <td style={{ ...TD, textAlign: "right" }}>{fmt(m.cantEjecutado)}</td>
+                <td style={{ ...TD, textAlign: "right" }}>{fmt(m.cantEjecutado, 4)}</td>
                 <td style={{ ...TD, textAlign: "right" }}>{COP(m.vrEjecutado)}</td>
                 <td style={{ ...TD, textAlign: "right" }}>
                   {varPct != null ? (
@@ -105,17 +105,17 @@ function TablaMateriasImportadas({ materials }) {
             );
           })}
           <tr style={{ background: "#EEF2FF", fontWeight: 700, borderTop: "2px solid var(--color-border)" }}>
-            <td colSpan={3} style={{ ...TD, fontSize: 12, color: "var(--color-muted)", textAlign: "right" }}>Total MPD (Std)</td>
+            <td colSpan={3} style={{ ...TD, fontSize: 12, color: "var(--color-muted)" }}>Total</td>
+            <td style={{ ...TD, textAlign: "right", color: "#1F3864" }}>
+              {COP(materials.reduce((s, m) => s + (m.vrStd ?? 0), 0))}
+            </td>
+            <td style={TD} />
             <td style={{ ...TD, textAlign: "right", color: "#1F3864" }}>
               {COP(materials.reduce((s, m) => s + (m.vrPlaneado ?? 0), 0))}
             </td>
-            <td colSpan={2} style={{ ...TD, fontSize: 12, color: "var(--color-muted)", textAlign: "right" }}>Total MPD (Ejec)</td>
+            <td style={TD} />
             <td style={{ ...TD, textAlign: "right" }}>
               {COP(materials.reduce((s, m) => s + (m.vrEjecutado ?? 0), 0))}
-            </td>
-            <td style={{ ...TD, textAlign: "right" }}>
-              {/* Vr. Estándar */}
-              {COP(materials.reduce((s, m) => s + (m.vrStd ?? 0), 0))}
             </td>
             <td style={TD} />
           </tr>
@@ -564,11 +564,11 @@ export default function Referencias({ referencias, materiales, parametros, reloa
               </div>
               <div className="field-grid-2">
                 <div>
-                  <label className="field-label">Costo mano de obra (MOD)</label>
+                  <label className="field-label">MOD manual (COP)</label>
                   <input type="number" step="1" min="0" className="input" placeholder="$ 0" value={form.hMOD} onChange={(e) => setForm({ ...form, hMOD: e.target.value })} required />
                 </div>
                 <div>
-                  <label className="field-label">Costo Carga Fabril (CIF)</label>
+                  <label className="field-label">CIF manual (COP)</label>
                   <input type="number" step="1" min="0" className="input" placeholder="$ 0" value={form.hCIF} onChange={(e) => setForm({ ...form, hCIF: e.target.value })} required />
                 </div>
               </div>
