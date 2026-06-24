@@ -84,6 +84,39 @@ export function calcCostos(ref, params) {
   };
 }
 
+// Calcula costos desde datos importados (CostOrder / CostLabor / CostMaterial).
+// Si no hay datos importados, vuelve a calcCostos como fallback.
+export function calcCostosEstandar(ref, params) {
+  const imp = ref.costosImportados;
+  if (!imp) {
+    const c = calcCostos(ref, params);
+    return {
+      mpd: c.mpd,
+      mod: c.mod,
+      cif: c.cif,
+      costoEstandar: c.costoProd,
+      costoOdoo: c.costoReal || 0,
+      variacion: c.variacion,
+      fuenteImportada: false,
+    };
+  }
+  const costoEstandar = imp.costoEstandar ?? (imp.mpd + imp.mod + imp.cif);
+  const costoOdoo = imp.costoOdoo ?? 0;
+  const variacion =
+    costoEstandar > 0 && costoOdoo > 0
+      ? ((costoOdoo - costoEstandar) / costoEstandar) * 100
+      : null;
+  return {
+    mpd: imp.mpd,
+    mod: imp.mod,
+    cif: imp.cif,
+    costoEstandar,
+    costoOdoo,
+    variacion,
+    fuenteImportada: true,
+  };
+}
+
 export function COP(v) {
   if (v == null || isNaN(v)) return "$ 0,00";
   return new Intl.NumberFormat("es-CO", {

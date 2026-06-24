@@ -230,6 +230,8 @@ router.post("/", upload.single("file"), async (req, res) => {
     // ── Process Materia Prima ─────────────────────────────────────────────────
     const mpItems = rowsMP.map((r) => {
       const costoMp = num(r["Costo mp"]);
+      const cantStd = num(r["Cant. x Ud. Planeado Standard"]);
+      const vrStd = num(r["Vr. x Ud. Planeado Standard"]);
       const cantPlan = num(r["Cant. x Ud. Planeado"]);
       const vrPlan = num(r["Vr. x Ud. Planeado"]);
       const cantEjec = num(r["Cant. x Ud. Ejecutado"]);
@@ -244,6 +246,8 @@ router.post("/", upload.single("file"), async (req, res) => {
       return {
         insumo: String(r["Insumo"] || "").trim(),
         costoMp,
+        cantStd: isNaN(cantStd) ? null : cantStd,
+        vrStd: isNaN(vrStd) ? null : vrStd,
         cantPlaneado: cantPlan, vrPlaneado: vrPlan,
         cantEjecutado: cantEjec, vrEjecutado: vrEjec,
         variacionCantidad: cantEjec - cantPlan,

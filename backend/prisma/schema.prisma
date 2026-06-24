@@ -104,6 +104,8 @@ model CostMaterial {
   order             CostOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
   insumo            String
   costoMp           Float
+  cantStd           Float?
+  vrStd             Float?
   cantPlaneado      Float
   vrPlaneado        Float
   cantEjecutado     Float
