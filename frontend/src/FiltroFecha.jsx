@@ -1,5 +1,5 @@
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import { mesLabel, COLORS } from "./api.js";
+import { mesLabel, COLORS } from "./utils/costos.js";
 
 function shiftMes(ym, delta) {
   if (!ym) return ym;
