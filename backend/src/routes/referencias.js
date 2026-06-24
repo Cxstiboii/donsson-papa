@@ -1,8 +1,7 @@
 const express = require("express");
-const { PrismaClient } = require("@prisma/client");
+const prisma = require("../prisma");
 
 const router = express.Router();
-const prisma = new PrismaClient();
 
 const includeConsumos = { consumos: { include: { material: true } } };
 
@@ -133,6 +132,10 @@ router.post("/", async (req, res) => {
 router.put("/:id", async (req, res) => {
   try {
     const { familia, segMOD, cifUnitario, costoReal, mes, consumos } = req.body;
+
+    if (!familia || !mes) {
+      return res.status(400).json({ error: "Los campos familia y mes son obligatorios" });
+    }
 
     const referencia = await prisma.$transaction(async (tx) => {
       await tx.referencia.update({

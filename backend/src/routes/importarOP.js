@@ -1,10 +1,9 @@
 const express = require("express");
 const multer = require("multer");
 const XLSX = require("xlsx");
-const { PrismaClient } = require("@prisma/client");
+const prisma = require("../prisma");
 
 const router = express.Router();
-const prisma = new PrismaClient();
 const upload = multer({ storage: multer.memoryStorage() });
 
 function parseColombianNumber(val) {
@@ -119,8 +118,8 @@ router.post("/", upload.single("file"), async (req, res) => {
 
     res.json(result);
   } catch (e) {
-    console.error(e);
-    res.status(500).json({ error: "Error al importar OP: " + e.message });
+    console.error("Error al importar OP:", e);
+    res.status(500).json({ error: "Error al importar OP. Revisa el archivo e intenta de nuevo." });
   }
 });
 

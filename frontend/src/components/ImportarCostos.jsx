@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   Upload, AlertCircle, CheckCircle, ChevronLeft, Trash2,
   Clock, Package, Wrench, TrendingUp, TrendingDown,
@@ -170,7 +170,7 @@ function TablaLabor({ items }) {
                 <td style={td}>{fmt(item.cantEjecutado, 3)}</td>
                 <td style={td}>{COP(item.vrEjecutado)}</td>
                 <td style={td}>{fmtTarifa(item.tarifaEjecutada)}</td>
-                <td style={td}><PctBadge v={0} />{/* placeholder replaced below */}</td>
+                <td style={td}>{COP(item.variacionValor)}</td>
                 <td style={td}><PctBadge v={item.variacionPct} /></td>
                 <td style={td}><PctBadge v={item.eficienciaTiempoPct} inverse /></td>
                 <td style={td}><AlertDot active={item.alertaTarifa} /></td>
@@ -245,7 +245,7 @@ function TablaMateriales({ items }) {
                 <td style={{ ...td, color: varCantColor, fontWeight: 600 }}>
                   {varCant > 0 ? "+" : ""}{fmt(varCant, 4)}
                 </td>
-                <td style={td}><PctBadge v={0} />{/* below */}</td>
+                <td style={td}>{COP(item.variacionValor)}</td>
                 <td style={td}><PctBadge v={item.variacionPct} /></td>
                 <td style={td}><AlertDot active={item.alertaCantidad} /></td>
               </tr>
@@ -501,6 +501,7 @@ export default function ImportarCostos() {
   const [importResult, setImportResult] = useState(null); // { warnings, order }
   const [importErrors, setImportErrors] = useState(null); // { errors, warnings }
   const [deleteConfirm, setDeleteConfirm] = useState(null);
+  const fileInputRef = useRef(null);
 
   const loadOrders = useCallback(async () => {
     setLoadingOrders(true);
@@ -549,8 +550,7 @@ export default function ImportarCostos() {
       setImportResult(data);
       setFile(null);
       // reset file input
-      const inp = document.getElementById("costos-file-input");
-      if (inp) inp.value = "";
+      if (fileInputRef.current) fileInputRef.current.value = "";
       await loadOrders();
       // Auto-select the imported order
       if (data.order) setSelectedOrder(data.order);
@@ -614,7 +614,7 @@ export default function ImportarCostos() {
           <div style={{ display: "flex", flexDirection: "column", gap: 4, flex: "1 1 280px" }}>
             <label style={{ fontSize: 12, fontWeight: 600, color: "#374151" }}>Archivo Excel (.xls)</label>
             <input
-              id="costos-file-input"
+              ref={fileInputRef}
               type="file"
               accept=".xls,.xlsx"
               className="input"

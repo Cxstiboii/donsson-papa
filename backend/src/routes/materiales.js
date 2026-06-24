@@ -1,10 +1,9 @@
 const express = require("express");
-const { PrismaClient } = require("@prisma/client");
+const prisma = require("../prisma");
 const multer = require("multer");
 const XLSX = require("xlsx");
 
 const router = express.Router();
-const prisma = new PrismaClient();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
 router.get("/", async (req, res) => {
@@ -85,10 +84,7 @@ router.post("/importar-csv", upload.single("archivo"), async (req, res) => {
     return res.status(400).json({ error: "No se pudo leer el archivo CSV" });
   }
 
-  await prisma.material.deleteMany();
-
-  let creados = 0;
-  let actualizados = 0;
+  const validRows = [];
   let omitidos = 0;
   const errores = [];
 
@@ -109,26 +105,24 @@ router.post("/importar-csv", upload.single("archivo"), async (req, res) => {
       continue;
     }
 
-    try {
-      const existente = await prisma.material.findUnique({ where: { id } });
-      if (existente) {
-        await prisma.material.update({
-          where: { id },
-          data: { nombre, costo },
-        });
-        actualizados++;
-      } else {
-        await prisma.material.create({
-          data: { id, nombre, unidad, costo },
-        });
-        creados++;
-      }
-    } catch (e) {
-      errores.push(`${id}: ${e.message}`);
-    }
+    validRows.push({ id, nombre, unidad, costo });
   }
 
-  res.json({ creados, actualizados, omitidos, errores });
+  try {
+    await prisma.$transaction(async (tx) => {
+      for (const { id, nombre, unidad, costo } of validRows) {
+        await tx.material.upsert({
+          where: { id },
+          update: { nombre, costo },
+          create: { id, nombre, unidad, costo },
+        });
+      }
+    });
+  } catch (e) {
+    errores.push(e.message);
+  }
+
+  res.json({ upserted: validRows.length, omitidos, errores });
 });
 
 module.exports = router;

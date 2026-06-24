@@ -1,19 +1,9 @@
 import { useState, useRef } from "react";
 import { Plus, Pencil, Trash2, Boxes, AlertCircle, X, Upload } from "lucide-react";
 import { materialesApi, COP, UNIDADES } from "../api.js";
+import { parseCOP, formatCOP } from "../utils/costos.js";
 
 const OTRA_UNIDAD = "__otra__";
-
-function parseCOP(str) {
-  return Number(String(str).replace(/\./g, "").replace(/,/g, "")) || 0;
-}
-
-function formatCOP(num) {
-  if (num === "" || num == null) return "";
-  const n = Number(String(num).replace(/\./g, ""));
-  if (isNaN(n)) return "";
-  return n.toLocaleString("es-CO");
-}
 
 const emptyForm = { id: "", nombre: "", unidad: UNIDADES[0], unidadCustom: "", costo: "" };
 

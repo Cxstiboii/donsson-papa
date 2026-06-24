@@ -30,6 +30,8 @@ model Referencia {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
   consumos      Consumo[]
+
+  @@index([mes])
 }
 
 model Consumo {
@@ -41,6 +43,7 @@ model Consumo {
   material     Material   @relation(fields: [materialId], references: [id])
 
   @@unique([referenciaId, materialId])
+  @@index([materialId])
 }
 
 model Parametros {
@@ -74,6 +77,9 @@ model CostOrder {
   archivoFuente     String
   laborItems        CostLabor[]
   materials         CostMaterial[]
+
+  @@index([refDonsson])
+  @@index([fechaFinal])
 }
 
 model CostLabor {

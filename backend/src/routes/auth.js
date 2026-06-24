@@ -1,12 +1,20 @@
 const express = require("express");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
-const { PrismaClient } = require("@prisma/client");
+const rateLimit = require("express-rate-limit");
+const prisma = require("../prisma");
 
 const router = express.Router();
-const prisma = new PrismaClient();
 
-router.post("/setup", async (req, res) => {
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  message: { error: "Demasiados intentos. Intenta de nuevo en 15 minutos." },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+router.post("/setup", authLimiter, async (req, res) => {
   try {
     const existing = await prisma.usuario.findUnique({ where: { id: 1 } });
     if (existing) {
@@ -14,8 +22,8 @@ router.post("/setup", async (req, res) => {
     }
 
     const { password } = req.body;
-    if (!password || password.length < 4) {
-      return res.status(400).json({ error: "La contraseña debe tener al menos 4 caracteres" });
+    if (!password || password.length < 10) {
+      return res.status(400).json({ error: "La contraseña debe tener al menos 10 caracteres" });
     }
 
     const passwordHash = await bcrypt.hash(password, 10);
@@ -39,7 +47,7 @@ router.get("/status", async (req, res) => {
   }
 });
 
-router.post("/login", async (req, res) => {
+router.post("/login", authLimiter, async (req, res) => {
   try {
     const { password } = req.body;
     const usuario = await prisma.usuario.findUnique({ where: { id: 1 } });

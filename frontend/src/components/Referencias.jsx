@@ -6,19 +6,9 @@ import {
 import {
   referenciasApi, materialesApi, calcCostos, calcCostosEstandar, COP, mesLabel,
 } from "../api.js";
+import { parseCOP, formatCOP } from "../utils/costos.js";
 import FiltroFecha, { dentroDeRango } from "../FiltroFecha.jsx";
 import { exportarExcel } from "../exportExcel.js";
-
-function parseCOP(str) {
-  return Number(String(str).replace(/\./g, "").replace(/,/g, "")) || 0;
-}
-
-function formatCOP(num) {
-  if (num === "" || num == null) return "";
-  const n = Number(String(num).replace(/\./g, ""));
-  if (isNaN(n)) return "";
-  return n.toLocaleString("es-CO");
-}
 
 function emptyForm() {
   return { id: "", familia: "", mes: "", hMOD: 0, hCIF: 0, costoReal: "", consumos: {} };
@@ -130,7 +120,7 @@ function TablaMateriasImportadas({ materials }) {
             </td>
             <td colSpan={2} style={{ ...TD, fontSize: 12, color: "var(--color-muted)", textAlign: "right" }}>Total MPD (Ejec)</td>
             <td style={{ ...TD, textAlign: "right" }}>
-              {COP(materials.reduce((s, m) => s + (m.vrPlaneado ?? 0), 0))}
+              {COP(materials.reduce((s, m) => s + (m.vrEjecutado ?? 0), 0))}
             </td>
             <td style={{ ...TD, textAlign: "right" }}>
               {COP(materials.reduce((s, m) => s + (m.vrEjecutado ?? 0), 0))}

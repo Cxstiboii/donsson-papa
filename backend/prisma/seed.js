@@ -1,6 +1,10 @@
 const { PrismaClient } = require("@prisma/client");
 const prisma = new PrismaClient();
 
+if (process.env.NODE_ENV === "production") {
+  console.warn("⚠️  Ejecutando seed en producción. Solo se crearán registros faltantes, no se sobreescribirán datos existentes.");
+}
+
 const materiales = [
   { id: "MAT-01", nombre: "Papel filtro celulosa", unidad: "m²", costo: 4200, proveedor: "Papelera Andina" },
   { id: "MAT-02", nombre: "Malla metálica galvanizada", unidad: "m²", costo: 8900, proveedor: "Aceros del Valle" },
@@ -19,7 +23,7 @@ async function main() {
   for (const m of materiales) {
     await prisma.material.upsert({
       where: { id: m.id },
-      update: m,
+      update: {},
       create: m,
     });
   }

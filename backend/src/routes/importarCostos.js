@@ -2,11 +2,13 @@ const express = require("express");
 const multer = require("multer");
 const XLSX = require("xlsx");
 const { randomUUID } = require("crypto");
-const { PrismaClient } = require("@prisma/client");
+const prisma = require("../prisma");
 
 const router = express.Router();
-const prisma = new PrismaClient();
-const upload = multer({ storage: multer.memoryStorage() });
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 20 * 1024 * 1024 }, // 20 MB máximo
+});
 
 const EXPECTED_COLUMNS = [
   "Tipo", "Orden", "Documento origen",
@@ -303,7 +305,7 @@ router.post("/", upload.single("file"), async (req, res) => {
           create: {
             id: refDonsson,
             nombre: productoRaw,
-            familia: "",
+            familia: "SIN_CLASIFICAR",
             mes,
             fechaCreacion: mes,
           },
@@ -348,8 +350,8 @@ router.post("/", upload.single("file"), async (req, res) => {
       order,
     });
   } catch (e) {
-    console.error(e);
-    res.status(500).json({ error: "Error al importar costos: " + e.message });
+    console.error("Error al importar costos:", e);
+    res.status(500).json({ error: "Error al importar costos. Revisa el archivo e intenta de nuevo." });
   }
 });
 
@@ -362,31 +364,38 @@ router.get("/", async (_req, res) => {
     });
     res.json(orders);
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    console.error("Error al listar órdenes:", e);
+    res.status(500).json({ error: "Error al obtener las órdenes de costo." });
   }
 });
 
 // ── GET /:id ─ Single order ───────────────────────────────────────────────────
 router.get("/:id", async (req, res) => {
   try {
+    const id = parseInt(req.params.id, 10);
+    if (isNaN(id)) return res.status(400).json({ error: "ID de orden inválido" });
     const order = await prisma.costOrder.findUnique({
-      where: { id: parseInt(req.params.id) },
+      where: { id },
       include: { laborItems: true, materials: true },
     });
     if (!order) return res.status(404).json({ error: "Orden no encontrada" });
     res.json(order);
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    console.error("Error al obtener orden:", e);
+    res.status(500).json({ error: "Error al obtener la orden de costo." });
   }
 });
 
 // ── DELETE /:id ───────────────────────────────────────────────────────────────
 router.delete("/:id", async (req, res) => {
   try {
-    await prisma.costOrder.delete({ where: { id: parseInt(req.params.id) } });
+    const id = parseInt(req.params.id, 10);
+    if (isNaN(id)) return res.status(400).json({ error: "ID de orden inválido" });
+    await prisma.costOrder.delete({ where: { id } });
     res.json({ success: true });
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    console.error("Error al eliminar orden:", e);
+    res.status(500).json({ error: "Error al eliminar la orden de costo." });
   }
 });
 
