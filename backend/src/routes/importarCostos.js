@@ -1,7 +1,6 @@
 const express = require("express");
 const multer = require("multer");
 const XLSX = require("xlsx");
-const { randomUUID } = require("crypto");
 const prisma = require("../prisma");
 
 const router = express.Router();
@@ -317,8 +316,18 @@ router.post("/", upload.single("file"), async (req, res) => {
       for (const [nombre, costo] of materialesParaCrear) {
         const existe = await tx.material.findFirst({ where: { nombre } });
         if (!existe) {
+          // Before auto-creating a material, find the highest existing AUTO-NNN ID
+          const autoMaterials = await prisma.material.findMany({
+            where: { id: { startsWith: "AUTO-" } },
+            select: { id: true },
+            orderBy: { id: "desc" },
+          });
+          const lastNum = autoMaterials.length > 0
+            ? parseInt(autoMaterials[0].id.replace("AUTO-", ""), 10)
+            : 0;
+          const newId = `AUTO-${String(lastNum + 1).padStart(3, "0")}`;
           await tx.material.create({
-            data: { id: randomUUID(), nombre, unidad: "", costo, proveedor: "" },
+            data: { id: newId, nombre, unidad: "", costo, proveedor: "" },
           });
         }
       }
@@ -360,7 +369,6 @@ router.get("/", async (_req, res) => {
   try {
     const orders = await prisma.costOrder.findMany({
       orderBy: { fechaImportacion: "desc" },
-      include: { laborItems: true, materials: true },
     });
     res.json(orders);
   } catch (e) {

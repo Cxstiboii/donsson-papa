@@ -36,11 +36,12 @@ export default function Parametros({ parametros, onSaved }) {
 
   const campo = (key, label, Icon, step = "0.01") => (
     <div className="card">
-      <label className="field-label" style={{ marginTop: 0, display: "flex", alignItems: "center", gap: 6 }}>
+      <label htmlFor={`param-${key}`} className="field-label" style={{ marginTop: 0, display: "flex", alignItems: "center", gap: 6 }}>
         <Icon size={16} />
         {label}
       </label>
       <input
+        id={`param-${key}`}
         type="number"
         step={step}
         value={form[key]}

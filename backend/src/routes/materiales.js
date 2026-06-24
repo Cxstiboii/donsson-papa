@@ -70,6 +70,34 @@ router.delete("/:id", async (req, res) => {
   }
 });
 
+router.patch("/:id/rename", async (req, res) => {
+  try {
+    const { newId, nombre, unidad, costo, proveedor } = req.body;
+    if (!newId || !nombre || !unidad || costo == null) {
+      return res.status(400).json({ error: "Faltan campos obligatorios para el renombrado" });
+    }
+    await prisma.$transaction(async (tx) => {
+      // Crear el material con el nuevo ID
+      await tx.material.create({
+        data: { id: newId, nombre, unidad, costo, proveedor: proveedor || "" },
+      });
+      // Redirigir todos los consumos al nuevo ID
+      await tx.consumo.updateMany({
+        where: { materialId: req.params.id },
+        data: { materialId: newId },
+      });
+      // Eliminar el material con el ID antiguo
+      await tx.material.delete({ where: { id: req.params.id } });
+    });
+    const updated = await prisma.material.findUnique({ where: { id: newId } });
+    res.json(updated);
+  } catch (e) {
+    if (e.code === "P2002") return res.status(400).json({ error: "Ya existe un material con ese código" });
+    console.error("Error al renombrar material:", e);
+    res.status(500).json({ error: "Error al renombrar el material" });
+  }
+});
+
 router.post("/importar-csv", upload.single("archivo"), async (req, res) => {
   if (!req.file) {
     return res.status(400).json({ error: "No se recibió ningún archivo" });

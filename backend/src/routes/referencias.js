@@ -183,4 +183,23 @@ router.delete("/:id", async (req, res) => {
   }
 });
 
+router.patch("/:id/costoReal", async (req, res) => {
+  try {
+    const { costoReal } = req.body;
+    if (costoReal == null || typeof costoReal !== "number") {
+      return res.status(400).json({ error: "costoReal debe ser un número válido" });
+    }
+    const ref = await prisma.referencia.update({
+      where: { id: req.params.id },
+      data: { costoReal },
+      include: { consumos: { include: { material: true } } },
+    });
+    res.json(ref);
+  } catch (e) {
+    if (e.code === "P2025") return res.status(404).json({ error: "Referencia no encontrada" });
+    console.error("Error actualizando costoReal:", e);
+    res.status(500).json({ error: "Error al actualizar costo real" });
+  }
+});
+
 module.exports = router;

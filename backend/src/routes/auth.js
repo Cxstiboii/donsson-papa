@@ -37,7 +37,7 @@ router.post("/setup", authLimiter, async (req, res) => {
   }
 });
 
-router.get("/status", async (req, res) => {
+router.get("/status", authLimiter, async (req, res) => {
   try {
     const existing = await prisma.usuario.findUnique({ where: { id: 1 } });
     res.json({ configured: !!existing });

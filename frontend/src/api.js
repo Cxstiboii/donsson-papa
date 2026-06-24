@@ -45,6 +45,8 @@ export const materialesApi = {
   create: (data) => request("/materiales", { method: "POST", body: JSON.stringify(data) }),
   update: (id, data) => request(`/materiales/${id}`, { method: "PUT", body: JSON.stringify(data) }),
   remove: (id) => request(`/materiales/${id}`, { method: "DELETE" }),
+  rename: (id, data) =>
+    request(`/materiales/${id}/rename`, { method: "PATCH", body: JSON.stringify(data) }),
   importarCSV: async (file) => {
     const token = getToken();
     const form = new FormData();
@@ -66,6 +68,11 @@ export const referenciasApi = {
   create: (data) => request("/referencias", { method: "POST", body: JSON.stringify(data) }),
   update: (id, data) => request(`/referencias/${id}`, { method: "PUT", body: JSON.stringify(data) }),
   remove: (id) => request(`/referencias/${id}`, { method: "DELETE" }),
+  updateCostoReal: (id, costoReal) =>
+    request(`/referencias/${id}/costoReal`, {
+      method: "PATCH",
+      body: JSON.stringify({ costoReal }),
+    }),
 };
 
 export const parametrosApi = {
@@ -79,4 +86,3 @@ export const costosApi = {
   remove: (id) => request(`/importar-costos/${id}`, { method: "DELETE" }),
 };
 
-export { calcCostos, calcCostosEstandar, COP, COLORS, mesLabel, UNIDADES } from "./utils/costos.js";

@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
-import { calcCostos, COP, COLORS } from "./api.js";
+import { calcCostos, COP, COLORS } from "./utils/costos.js";
 
-const FAMILIA_COLOR = { FA: COLORS.azulMedio, FM: COLORS.verdeOscuro, FE: COLORS.amberTexto };
+const FAMILIA_COLOR = { AAA: COLORS.azulMedio, A: COLORS.verdeOscuro, B: COLORS.amberTexto, C: COLORS.rojoTexto };
 const familiaColor = (f) => FAMILIA_COLOR[f] || COLORS.azulMedio;
 
 function abreviarCOP(v) {

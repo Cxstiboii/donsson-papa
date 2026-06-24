@@ -60,7 +60,11 @@ export default function Login({ onLogin }) {
                 <span>Primer uso: crea una contraseña de acceso.</span>
               </div>
             )}
+            <label htmlFor="login-password" style={{ display: "block", marginBottom: 4, fontWeight: 500 }}>
+              Contraseña
+            </label>
             <input
+              id="login-password"
               type="password"
               placeholder="Contraseña"
               value={password}
@@ -70,14 +74,20 @@ export default function Login({ onLogin }) {
               autoFocus
             />
             {!configured && (
-              <input
-                type="password"
-                placeholder="Confirmar contraseña"
-                value={confirm}
-                onChange={(e) => setConfirm(e.target.value)}
-                className="input"
-                style={{ marginBottom: 12 }}
-              />
+              <>
+                <label htmlFor="login-confirm" style={{ display: "block", marginBottom: 4, fontWeight: 500 }}>
+                  Confirmar contraseña
+                </label>
+                <input
+                  id="login-confirm"
+                  type="password"
+                  placeholder="Confirmar contraseña"
+                  value={confirm}
+                  onChange={(e) => setConfirm(e.target.value)}
+                  className="input"
+                  style={{ marginBottom: 12 }}
+                />
+              </>
             )}
             {error && (
               <div className="alert alert-error" style={{ marginBottom: 12, textAlign: "left" }}>

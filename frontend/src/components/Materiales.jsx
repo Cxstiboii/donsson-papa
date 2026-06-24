@@ -1,6 +1,7 @@
 import { useState, useRef } from "react";
 import { Plus, Pencil, Trash2, Boxes, AlertCircle, X, Upload } from "lucide-react";
-import { materialesApi, COP, UNIDADES } from "../api.js";
+import { materialesApi } from "../api.js";
+import { COP, UNIDADES } from "../utils/costos.js";
 import { parseCOP, formatCOP } from "../utils/costos.js";
 
 const OTRA_UNIDAD = "__otra__";
@@ -67,19 +68,10 @@ export default function Materiales({ materiales, reload }) {
     try {
       const unidad = form.unidad === OTRA_UNIDAD ? form.unidadCustom.trim() : form.unidad;
       const payload = { id: form.id, nombre: form.nombre, unidad, costo: parseCOP(form.costo) || 0 };
-      if (editing) {
-        if (form.id !== editing.id) {
-          const existe = materiales.some((m) => m.id === form.id);
-          if (existe) {
-            setError("Ya existe un material con ese código.");
-            setSaving(false);
-            return;
-          }
-          await materialesApi.create(payload);
-          await materialesApi.remove(editing.id);
-        } else {
-          await materialesApi.update(editing.id, payload);
-        }
+      if (editing && editing.id !== payload.id) {
+        await materialesApi.rename(editing.id, payload);
+      } else if (editing) {
+        await materialesApi.update(editing.id, payload);
       } else {
         await materialesApi.create(payload);
       }
@@ -135,11 +127,10 @@ export default function Materiales({ materiales, reload }) {
           <div>
             {importResult.ok ? (
               <span>
-                Importación completada: <strong>{importResult.creados}</strong> creados,{" "}
-                <strong>{importResult.actualizados}</strong> actualizados,{" "}
+                Importación completada: <strong>{importResult.upserted}</strong> materiales procesados,{" "}
                 <strong>{importResult.omitidos}</strong> omitidos.
                 {importResult.errores?.length > 0 && (
-                  <span> {importResult.errores.length} error(es): {importResult.errores.slice(0, 3).join(" | ")}</span>
+                  <span style={{ color: "red" }}> {importResult.errores.length} con error.</span>
                 )}
               </span>
             ) : (

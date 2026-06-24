@@ -27,10 +27,9 @@ import {
   materialesApi,
   referenciasApi,
   parametrosApi,
-  calcCostosEstandar,
-  mesLabel,
   costosApi,
 } from "./api.js";
+import { calcCostosEstandar, mesLabel } from "./utils/costos.js";
 
 const TABS = [
   { key: "referencias", label: "Referencias", icon: FileBarChart },
@@ -38,7 +37,7 @@ const TABS = [
   { key: "parametros", label: "Parámetros", icon: Sliders },
   { key: "comparativo", label: "Comparativo Odoo", icon: GitCompare },
   { key: "graficos", label: "Gráficos", icon: LineChart },
-  // { key: "importar", label: "Importar Odoo", icon: Upload },
+  { key: "importar", label: "Importar Odoo", icon: Upload },
   { key: "costos-produccion", label: "Costos Producción", icon: Factory },
 ];
 

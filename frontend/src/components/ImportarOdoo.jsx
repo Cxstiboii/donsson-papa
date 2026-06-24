@@ -1,7 +1,8 @@
 import { useState, useRef } from "react";
 import * as XLSX from "xlsx";
 import { Upload, AlertCircle } from "lucide-react";
-import { referenciasApi, COP } from "../api.js";
+import { referenciasApi } from "../api.js";
+import { COP } from "../utils/costos.js";
 
 const CANDIDATOS_CODIGO = ["referencia interna", "internal reference", "ref interna", "código", "codigo", "default_code", "ref."];
 const CANDIDATOS_COSTO = ["precio de costo", "cost price", "costo", "precio costo", "standard_price", "coste"];
@@ -107,12 +108,13 @@ export default function ImportarOdoo({ referencias, onImportDone }) {
     setResult(null);
 
     let updated = 0;
+    const errores = [];
     for (const row of matches) {
       try {
-        await referenciasApi.update(row.ref.id, { costoReal: Number(row.costo) });
+        await referenciasApi.updateCostoReal(row.ref.id, Number(row.costo));
         updated++;
-      } catch {
-        // continue with remaining
+      } catch (e) {
+        errores.push(`${row.ref.id}: ${e.message}`);
       }
       setProgress((p) => ({ ...p, current: p.current + 1 }));
     }
@@ -120,7 +122,7 @@ export default function ImportarOdoo({ referencias, onImportDone }) {
     setApplying(false);
     setProgress(null);
     setPreview(null);
-    setResult(updated);
+    setResult({ updated, errores });
     await onImportDone();
   }
 
@@ -202,7 +204,12 @@ export default function ImportarOdoo({ referencias, onImportDone }) {
             fontSize: 14,
           }}
         >
-          {result} referencia{result !== 1 ? "s" : ""} actualizada{result !== 1 ? "s" : ""} correctamente.
+          {result.updated} referencia{result.updated !== 1 ? "s" : ""} actualizada{result.updated !== 1 ? "s" : ""} correctamente.
+          {result.errores?.length > 0 && (
+            <span style={{ color: "#991B1B", display: "block", marginTop: 4, fontSize: 13, fontWeight: 400 }}>
+              {result.errores.length} error{result.errores.length !== 1 ? "es" : ""}: {result.errores.join(", ")}
+            </span>
+          )}
         </div>
       )}
 

@@ -4,17 +4,11 @@ import {
   Clock, Package, Wrench, TrendingUp, TrendingDown,
   AlertTriangle, FileText, CalendarDays,
 } from "lucide-react";
-import { getToken, costosApi, COP } from "../api.js";
+import { getToken, costosApi } from "../api.js";
+import { COP, fmt } from "../utils/costos.js";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function fmt(v, dec = 3) {
-  if (v == null || isNaN(v)) return "—";
-  return Number(v).toLocaleString("es-CO", {
-    minimumFractionDigits: dec,
-    maximumFractionDigits: dec,
-  });
-}
 
 function fmtSeg(v) {
   if (v == null || isNaN(v)) return "—";
@@ -417,9 +411,6 @@ function OrderList({ orders, onSelect, onDelete }) {
             const varPct = o.totalPlaneado > 0
               ? ((o.totalVariacion / o.totalPlaneado) * 100)
               : 0;
-            const alertCount =
-              o.laborItems.filter((x) => x.alertaTarifa).length +
-              o.materials.filter((x) => x.alertaCantidad).length;
             return (
               <div
                 key={o.id}
@@ -440,19 +431,10 @@ function OrderList({ orders, onSelect, onDelete }) {
                       background: "#D6E4F0", color: "#1F3864", borderRadius: 10,
                       padding: "1px 8px", fontSize: 11, fontWeight: 600,
                     }}>{o.refDonsson}</span>
-                    {alertCount > 0 && (
-                      <span style={{
-                        background: "#FEF3C7", color: "#92400E", borderRadius: 10,
-                        padding: "1px 8px", fontSize: 11, fontWeight: 600,
-                      }}>
-                        ⚠ {alertCount} alerta{alertCount !== 1 ? "s" : ""}
-                      </span>
-                    )}
                   </div>
                   <div style={{ fontSize: 12, color: "#6B7280", marginTop: 3 }}>
                     {o.documentoOrigen} &nbsp;·&nbsp; Clase {o.productoClase} &nbsp;·&nbsp;
-                    {Number(o.cantidadFabricada).toLocaleString("es-CO")} uds &nbsp;·&nbsp;
-                    {o.materials.length} insumos
+                    {Number(o.cantidadFabricada).toLocaleString("es-CO")} uds
                   </div>
                 </div>
                 <div style={{ textAlign: "right", flexShrink: 0 }}>
@@ -698,7 +680,10 @@ export default function ImportarCostos() {
       ) : (
         <OrderList
           orders={orders}
-          onSelect={setSelectedOrder}
+          onSelect={async (o) => {
+            const full = await costosApi.get(o.id);
+            setSelectedOrder(full);
+          }}
           onDelete={handleDelete}
         />
       )}

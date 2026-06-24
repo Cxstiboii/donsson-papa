@@ -1,5 +1,5 @@
 import ExcelJS from 'exceljs'
-import { calcCostos } from './api.js'
+import { calcCostos } from './utils/costos.js'
 
 // Paleta — extraída visualmente del Excel original Donsoon
 const C = {

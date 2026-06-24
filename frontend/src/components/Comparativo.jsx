@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { CheckCircle2, TriangleAlert, TrendingDown, GitCompare, X } from "lucide-react";
-import { calcCostos, COP, mesLabel } from "../api.js";
+import { calcCostos, COP, mesLabel } from "../utils/costos.js";
 
 export default function Comparativo({ referencias, parametros }) {
   const [mes, setMes] = useState("");

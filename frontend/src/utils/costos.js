@@ -90,13 +90,24 @@ export const COLORS = {
   blanco: "#FFFFFF",
 };
 
+// Convierte string en formato colombiano ("1.234,56" o "1234.56") a número
 export function parseCOP(str) {
-  return Number(String(str).replace(/\./g, "").replace(/,/g, "")) || 0;
+  const s = String(str).trim().replace(/\./g, "").replace(",", ".");
+  const n = parseFloat(s);
+  return isNaN(n) ? 0 : n;
 }
 
+// Formatea número a string en formato colombiano para inputs de tipo text
 export function formatCOP(num) {
-  if (num === "" || num == null) return "";
-  const n = Number(String(num).replace(/\./g, ""));
+  const n = Number(num);
   if (isNaN(n)) return "";
-  return n.toLocaleString("es-CO");
+  return n.toLocaleString("es-CO", { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+}
+
+export function fmt(v, dec = 0) {
+  if (v == null || isNaN(Number(v))) return "—";
+  return Number(v).toLocaleString("es-CO", {
+    minimumFractionDigits: dec,
+    maximumFractionDigits: dec,
+  });
 }

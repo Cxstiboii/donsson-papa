@@ -1,26 +1,17 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Plus, Pencil, Trash2, Search, FileBarChart, AlertCircle, X,
   Download, ChevronDown, ChevronRight, Package, Wrench,
 } from "lucide-react";
-import {
-  referenciasApi, materialesApi, calcCostos, calcCostosEstandar, COP, mesLabel,
-} from "../api.js";
+import { referenciasApi, materialesApi } from "../api.js";
+import { calcCostos, calcCostosEstandar, COP, mesLabel, fmt } from "../utils/costos.js";
 import { parseCOP, formatCOP } from "../utils/costos.js";
 import FiltroFecha, { dentroDeRango } from "../FiltroFecha.jsx";
-import { exportarExcel } from "../exportExcel.js";
 
 function emptyForm() {
   return { id: "", familia: "", mes: "", hMOD: 0, hCIF: 0, costoReal: "", consumos: {} };
 }
 
-function fmt(v, dec = 4) {
-  if (v == null || isNaN(v)) return "—";
-  return Number(v).toLocaleString("es-CO", {
-    minimumFractionDigits: dec,
-    maximumFractionDigits: dec,
-  });
-}
 
 const TH = {
   padding: "8px 10px", textAlign: "left", fontWeight: 600,
@@ -123,7 +114,8 @@ function TablaMateriasImportadas({ materials }) {
               {COP(materials.reduce((s, m) => s + (m.vrEjecutado ?? 0), 0))}
             </td>
             <td style={{ ...TD, textAlign: "right" }}>
-              {COP(materials.reduce((s, m) => s + (m.vrEjecutado ?? 0), 0))}
+              {/* Vr. Estándar */}
+              {COP(materials.reduce((s, m) => s + (m.vrStd ?? 0), 0))}
             </td>
             <td style={TD} />
           </tr>
@@ -249,11 +241,16 @@ export default function Referencias({ referencias, materiales, parametros, reloa
   const [drawerAddMatQty, setDrawerAddMatQty] = useState("");
   const [drawerSaving, setDrawerSaving] = useState(false);
 
+  const drawerRefIdRef = useRef(null);
+
   useEffect(() => {
-    if (!drawerRef) return;
-    const updated = referencias.find((r) => r.id === drawerRef.id);
+    drawerRefIdRef.current = drawerRef?.id ?? null;
+  }, [drawerRef]);
+
+  useEffect(() => {
+    if (!drawerRefIdRef.current) return;
+    const updated = referencias.find((r) => r.id === drawerRefIdRef.current);
     if (updated) setDrawerRef(updated);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [referencias]);
 
   const familias = useMemo(
@@ -285,7 +282,8 @@ export default function Referencias({ referencias, materiales, parametros, reloa
     return materiales.filter((m) => !ids.has(m.id));
   }, [materiales, form.consumos]);
 
-  function handleExport() {
+  async function handleExport() {
+    const { exportarExcel } = await import("../exportExcel.js");
     exportarExcel(filtradas, parametros, filtroLabel).catch((err) => {
       console.error("Error exportando Excel:", err);
       setError("No se pudo generar el archivo Excel.");

@@ -4,7 +4,10 @@ const XLSX = require("xlsx");
 const prisma = require("../prisma");
 
 const router = express.Router();
-const upload = multer({ storage: multer.memoryStorage() });
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB
+});
 
 function parseColombianNumber(val) {
   if (val === null || val === undefined || val === "") return 0;
@@ -38,6 +41,10 @@ router.post("/", upload.single("file"), async (req, res) => {
     }
     if (!referenciaId || !familia || !mes) {
       return res.status(400).json({ error: "Faltan campos obligatorios: referenciaId, familia, mes" });
+    }
+
+    if (!/^\d{4}-\d{2}$/.test(mes)) {
+      return res.status(400).json({ error: "El campo mes debe tener formato YYYY-MM (ej: 2024-03)" });
     }
 
     const wb = XLSX.read(req.file.buffer, { type: "buffer" });

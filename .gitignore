@@ -8,5 +8,8 @@ frontend/node_modules/
 frontend/dist/
 dist/
 backend/node_modules/.prisma/
+# Prisma engine binaries
+backend/prisma/generated/
+*.pem
 .DS_Store
 Thumbs.db
