@@ -4,6 +4,6 @@
   },
   "deploy": {
     "restartPolicyType": "ON_FAILURE",
-    "startCommand": "cd backend && npx prisma migrate deploy && npm start"
+    "startCommand": "cd backend && npx prisma migrate resolve --applied 0001_init && npx prisma migrate deploy && npm start"
   }
 }
