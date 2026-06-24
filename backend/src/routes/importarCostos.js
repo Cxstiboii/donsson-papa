@@ -1,6 +1,7 @@
 const express = require("express");
 const multer = require("multer");
 const XLSX = require("xlsx");
+const { randomUUID } = require("crypto");
 const { PrismaClient } = require("@prisma/client");
 
 const router = express.Router();
@@ -244,6 +245,7 @@ router.post("/", upload.single("file"), async (req, res) => {
     // ── Process Materia Prima ─────────────────────────────────────────────────
     const materialesEncontrados = [];
     const materialesNoEncontrados = [];
+    const materialesParaCrear = new Map(); // nombre -> costoMp (únicos no encontrados)
 
     const mpItems = rowsMP.map((r) => {
       const insumoNombre = String(r["Insumo"] || "").trim();
@@ -257,7 +259,10 @@ router.post("/", upload.single("file"), async (req, res) => {
       } else {
         costoMp = num(r["Costo mp"]);
         materialesNoEncontrados.push(insumoNombre);
-        warnings.push(`Material "${insumoNombre}" no encontrado en catálogo; se usó Costo mp del Excel ($${costoMp})`);
+        if (!materialesParaCrear.has(insumoNombre)) {
+          materialesParaCrear.set(insumoNombre, costoMp);
+        }
+        warnings.push(`Material "${insumoNombre}" no encontrado en catálogo; se usó Costo mp del Excel ($${costoMp}) y se creará automáticamente`);
       }
 
       const cantStd = parseNum(r["Cant. x Ud. Planeado Standard"]);
@@ -322,6 +327,16 @@ router.post("/", upload.single("file"), async (req, res) => {
           },
           update: {},
         });
+      }
+
+      // Auto-crear materiales faltantes en el catálogo
+      for (const [nombre, costo] of materialesParaCrear) {
+        const existe = await tx.material.findFirst({ where: { nombre } });
+        if (!existe) {
+          await tx.material.create({
+            data: { id: randomUUID(), nombre, unidad: "", costo, proveedor: "" },
+          });
+        }
       }
 
       return tx.costOrder.create({
