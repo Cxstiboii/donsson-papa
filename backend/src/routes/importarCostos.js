@@ -296,7 +296,7 @@ router.post("/", upload.single("file"), async (req, res) => {
     const order = await prisma.$transaction(async (tx) => {
       await tx.costOrder.deleteMany({ where: { orden } });
 
-      // Auto-crear Referencia si no existe todavía
+      // Crear o actualizar Referencia (actualiza mes y nombre en re-importaciones)
       if (refDonsson) {
         await tx.referencia.upsert({
           where: { id: refDonsson },
@@ -307,7 +307,7 @@ router.post("/", upload.single("file"), async (req, res) => {
             mes,
             fechaCreacion: mes,
           },
-          update: {},
+          update: { mes, nombre: productoRaw },
         });
       }
 
