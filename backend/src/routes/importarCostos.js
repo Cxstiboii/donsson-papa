@@ -67,6 +67,15 @@ function variacionPct(varVal, base) {
 }
 
 
+function inferirFamilia(refCode) {
+  const c = String(refCode || "").trim().toUpperCase();
+  if (/^AAA/.test(c)) return "AAA";
+  if (/^A/.test(c)) return "A";
+  if (/^B/.test(c)) return "B";
+  if (/^C/.test(c)) return "C";
+  return "SIN_CLASIFICAR";
+}
+
 // ── POST / ─ Import Excel ─────────────────────────────────────────────────────
 router.post("/", upload.single("file"), async (req, res) => {
   try {
@@ -290,6 +299,10 @@ router.post("/", upload.single("file"), async (req, res) => {
       warnings.push(`Total ejecutado supera en >15% al total planeado (${((totalVariacion / totalPlaneado) * 100).toFixed(1)}%)`);
     }
 
+    // ── MOD y CIF estándar para poblar Referencia.segMOD / cifUnitario ────────
+    const totalModVrStd = moItems.reduce((s, x) => s + (x.vrStd != null ? x.vrStd : (x.vrPlaneado ?? 0)), 0);
+    const cifVrStd = cfItem.vrStd != null ? cfItem.vrStd : (cfItem.vrPlaneado ?? 0);
+
     // ── Persist ───────────────────────────────────────────────────────────────
     const [mesYear, mesMonth] = mes.split("-").map(Number);
     const fechaInicial = new Date(mesYear, mesMonth - 1, 1);
@@ -309,6 +322,32 @@ router.post("/", upload.single("file"), async (req, res) => {
 
     // Transacción principal: materiales + CostOrder + CostMaterial (deben ser atómicos)
     const { savedOrderId, materialesCreados } = await prisma.$transaction(async (tx) => {
+      // Crear o actualizar Referencia — respeta familia si ya fue clasificada manualmente
+      if (refDonsson) {
+        const existingRef = await tx.referencia.findUnique({
+          where: { id: refDonsson },
+          select: { familia: true },
+        });
+        const familiaParaUsar =
+          existingRef?.familia && existingRef.familia !== "SIN_CLASIFICAR" && existingRef.familia !== ""
+            ? existingRef.familia
+            : inferirFamilia(refDonsson);
+
+        await tx.referencia.upsert({
+          where: { id: refDonsson },
+          create: {
+            id: refDonsson,
+            nombre: productoRaw,
+            familia: familiaParaUsar,
+            mes,
+            fechaCreacion: mes,
+            segMOD: totalModVrStd,
+            cifUnitario: cifVrStd,
+          },
+          update: { mes, nombre: productoRaw, segMOD: totalModVrStd, cifUnitario: cifVrStd, familia: familiaParaUsar },
+        });
+      }
+
       // Auto-crear materiales faltantes en el catálogo y registrarlos
       const creados = [];
       for (const [nombre, costo] of materialesParaCrear) {
