@@ -474,8 +474,8 @@ export default function Referencias({ referencias, materiales, parametros, reloa
               const variacion = c.variacion;
               const variacionClass =
                 variacion == null ? ""
-                : Math.abs(variacion) > 10 ? "badge-error"
-                : Math.abs(variacion) > 5 ? "badge-warning"
+                : variacion > 0 ? "badge-success"
+                : variacion < 0 ? "badge-error"
                 : "badge-success";
               const rowBg = rowIdx % 2 === 1 ? "#F8FAFC" : undefined;
               return (
@@ -914,7 +914,7 @@ export default function Referencias({ referencias, materiales, parametros, reloa
                             ? `${c.variacion > 0 ? "+" : ""}${c.variacion.toFixed(2)}%`
                             : "—",
                           highlight: false,
-                          color: c.variacion == null ? undefined : Math.abs(c.variacion) > 10 ? "#991B1B" : Math.abs(c.variacion) > 5 ? "#92400E" : "#065F46",
+                          color: c.variacion == null ? undefined : c.variacion > 0 ? "#065F46" : c.variacion < 0 ? "#991B1B" : "#374151",
                         },
                       ].map(({ label, value, highlight, color }) => (
                         <div key={label} style={{
