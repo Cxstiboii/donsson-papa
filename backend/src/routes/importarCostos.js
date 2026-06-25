@@ -19,12 +19,12 @@ const EXPECTED_COLUMNS = [
   "Estado",
 ];
 
-const MO_PROCESOS_STD = [
-  "MANO DE OBRA CORTE",
-  "MANO DE OBRA PLISADO",
-  "MANO DE OBRA INYECCION",
-  "MANO DE OBRA EMBALAJE",
-];
+// Un proceso de MO es válido si empieza con "MANO DE OBRA" (sin importar el sufijo)
+// o si es "CARGA FABRIL". Esto permite procesos nuevos sin modificar código.
+const esProcesoDeMO = (nombre) => {
+  const n = String(nombre || "").trim().toUpperCase();
+  return n.startsWith("MANO DE OBRA") || n.startsWith("CARGA FABRIL");
+};
 
 const TARIFA_STD_MO = 3.80;
 const TARIFA_STD_CF = 9.30;
@@ -66,14 +66,6 @@ function variacionPct(varVal, base) {
   return (varVal / base) * 100;
 }
 
-function inferirFamilia(refCode) {
-  const c = String(refCode || "").trim().toUpperCase();
-  if (/^AAA/.test(c)) return "AAA";
-  if (/^A/.test(c)) return "A";
-  if (/^B/.test(c)) return "B";
-  if (/^C/.test(c)) return "C";
-  return "SIN_CLASIFICAR";
-}
 
 // ── POST / ─ Import Excel ─────────────────────────────────────────────────────
 router.post("/", upload.single("file"), async (req, res) => {
@@ -139,15 +131,11 @@ router.post("/", upload.single("file"), async (req, res) => {
     }
 
     const procesosEncontrados = new Set(rowsMO.map((r) => String(r["Insumo"] || "").trim().toUpperCase()));
-    const procesosFaltantes = MO_PROCESOS_STD.filter((p) => !procesosEncontrados.has(p));
-    if (procesosFaltantes.length > 0) {
-      errors.push(`Procesos de MO faltantes: ${procesosFaltantes.join(", ")}`);
-    }
 
-    // Warn about extra (non-standard) MO processes
-    const procesosExtra = [...procesosEncontrados].filter((p) => !MO_PROCESOS_STD.includes(p));
-    if (procesosExtra.length > 0) {
-      warnings.push(`Procesos de MO no estándar encontrados: ${procesosExtra.join(", ")}`);
+    // Solo alertar si hay procesos que NO empiezan con "MANO DE OBRA" — se omiten del guardado
+    const procesosDesconocidos = [...procesosEncontrados].filter((p) => !esProcesoDeMO(p));
+    if (procesosDesconocidos.length > 0) {
+      warnings.push(`Procesos de MO no reconocidos (se omiten): ${procesosDesconocidos.join(", ")}`);
     }
 
     // Only flag as invalid if material is also absent from catalog (no fallback at all)
@@ -196,7 +184,9 @@ router.post("/", upload.single("file"), async (req, res) => {
     };
 
     // ── Process Mano de Obra ──────────────────────────────────────────────────
-    const moItems = rowsMO.map((r) => {
+    // Filtrar solo procesos reconocidos (empiezan con "MANO DE OBRA"); los desconocidos
+    // ya quedaron en warnings y se omiten silenciosamente.
+    const moItems = rowsMO.filter((r) => esProcesoDeMO(String(r["Insumo"] || "").trim())).map((r) => {
       const cantStd = parseNum(r["Cant. x Ud. Planeado Standard"]);
       const vrStd = parseNum(r["Vr. x Ud. Planeado Standard"]);
       const cantPlan = num(r["Cant. x Ud. Planeado"]);
@@ -300,10 +290,6 @@ router.post("/", upload.single("file"), async (req, res) => {
       warnings.push(`Total ejecutado supera en >15% al total planeado (${((totalVariacion / totalPlaneado) * 100).toFixed(1)}%)`);
     }
 
-    // ── MOD y CIF estándar para poblar Referencia.segMOD / cifUnitario ────────
-    const totalModVrStd = moItems.reduce((s, x) => s + (x.vrStd != null ? x.vrStd : (x.vrPlaneado ?? 0)), 0);
-    const cifVrStd = cfItem.vrStd != null ? cfItem.vrStd : (cfItem.vrPlaneado ?? 0);
-
     // ── Persist ───────────────────────────────────────────────────────────────
     const [mesYear, mesMonth] = mes.split("-").map(Number);
     const fechaInicial = new Date(mesYear, mesMonth - 1, 1);
@@ -319,33 +305,10 @@ router.post("/", upload.single("file"), async (req, res) => {
       archivoFuente: req.file.originalname || "Detalle de Costos.xls",
     };
 
-    const { order, materialesCreados } = await prisma.$transaction(async (tx) => {
-      // Crear o actualizar Referencia — respeta familia si ya fue clasificada
-      if (refDonsson) {
-        const existingRef = await tx.referencia.findUnique({
-          where: { id: refDonsson },
-          select: { familia: true },
-        });
-        const familiaParaUsar =
-          existingRef?.familia && existingRef.familia !== "SIN_CLASIFICAR" && existingRef.familia !== ""
-            ? existingRef.familia
-            : inferirFamilia(refDonsson);
+    const advertencias = [];
 
-        await tx.referencia.upsert({
-          where: { id: refDonsson },
-          create: {
-            id: refDonsson,
-            nombre: productoRaw,
-            familia: familiaParaUsar,
-            mes,
-            fechaCreacion: mes,
-            segMOD: totalModVrStd,
-            cifUnitario: cifVrStd,
-          },
-          update: { mes, nombre: productoRaw, segMOD: totalModVrStd, cifUnitario: cifVrStd, familia: familiaParaUsar },
-        });
-      }
-
+    // Transacción principal: materiales + CostOrder + CostMaterial (deben ser atómicos)
+    const { savedOrderId, materialesCreados } = await prisma.$transaction(async (tx) => {
       // Auto-crear materiales faltantes en el catálogo y registrarlos
       const creados = [];
       for (const [nombre, costo] of materialesParaCrear) {
@@ -374,15 +337,6 @@ router.post("/", upload.single("file"), async (req, res) => {
         update: orderData,
       });
 
-      // Upsert CostLabor por (orderId, proceso)
-      for (const item of [cfItem, ...moItems]) {
-        await tx.costLabor.upsert({
-          where: { orderId_proceso: { orderId: savedOrder.id, proceso: item.proceso } },
-          create: { orderId: savedOrder.id, ...item },
-          update: item,
-        });
-      }
-
       // Upsert CostMaterial por (orderId, insumo)
       for (const item of mpItems) {
         await tx.costMaterial.upsert({
@@ -392,11 +346,27 @@ router.post("/", upload.single("file"), async (req, res) => {
         });
       }
 
-      const finalOrder = await tx.costOrder.findUnique({
-        where: { id: savedOrder.id },
-        include: { laborItems: true, materials: true },
-      });
-      return { order: finalOrder, materialesCreados: creados };
+      return { savedOrderId: savedOrder.id, materialesCreados: creados };
+    });
+
+    // Upsert CostLabor fuera de la transacción — tolerancia a fallos por proceso:
+    // si uno falla (ej. campo nulo, nombre inesperado), se loguea y se continúa.
+    for (const item of [cfItem, ...moItems]) {
+      try {
+        await prisma.costLabor.upsert({
+          where: { orderId_proceso: { orderId: savedOrderId, proceso: item.proceso } },
+          create: { orderId: savedOrderId, ...item },
+          update: item,
+        });
+      } catch (err) {
+        console.error(`Error guardando proceso "${item.proceso}":`, err);
+        advertencias.push(`No se pudo guardar el proceso "${item.proceso}": ${err.message}`);
+      }
+    }
+
+    const order = await prisma.costOrder.findUnique({
+      where: { id: savedOrderId },
+      include: { laborItems: true, materials: true },
     });
 
     // Para limpiar duplicados existentes si los hubiera antes de este fix:
@@ -410,6 +380,7 @@ router.post("/", upload.single("file"), async (req, res) => {
     res.json({
       success: true,
       warnings,
+      advertencias,
       catalogoLookup: {
         encontrados: materialesEncontrados,
         noEncontrados: materialesNoEncontrados,
