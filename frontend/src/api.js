@@ -73,6 +73,8 @@ export const referenciasApi = {
       method: "PATCH",
       body: JSON.stringify({ costoReal }),
     }),
+  variacion: (id, mes) =>
+    request(`/referencias/${id}/variacion${mes ? `?mes=${encodeURIComponent(mes)}` : ""}`),
 };
 
 export const parametrosApi = {

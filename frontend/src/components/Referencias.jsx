@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Plus, Pencil, Trash2, Search, FileBarChart, AlertCircle, X,
-  Download, ChevronDown, ChevronRight, Package, Wrench,
+  Download, ChevronDown, ChevronRight, Package, Wrench, BarChart2,
 } from "lucide-react";
 import { referenciasApi, materialesApi } from "../api.js";
 import { calcCostos, calcCostosEstandar, COP, mesLabel, fmt } from "../utils/costos.js";
@@ -212,6 +212,194 @@ function TablaMOCIF({ laborItems }) {
   );
 }
 
+// ── Análisis de Variación ─────────────────────────────────────────────────────
+
+function VarianzaBadge({ value }) {
+  if (value == null || isNaN(value)) return <span style={{ color: "var(--color-muted)" }}>—</span>;
+  const favorable = value > 0;
+  const cls = favorable ? "badge-success" : value < 0 ? "badge-error" : "badge-info";
+  return (
+    <span className={`badge ${cls}`} style={{ fontSize: 11, padding: "2px 8px" }}>
+      {value > 0 ? "+" : ""}{COP(value)}
+    </span>
+  );
+}
+
+function BridgeTable({ data }) {
+  const filas = [
+    { label: "MOD — Eficiencia (tiempo)", value: data.mod.varTiempoMOD, indent: true },
+    { label: "MOD — Tarifa", value: data.mod.varTarifaMOD, indent: true },
+    { label: "CIF — Eficiencia (tiempo)", value: data.cif.varTiempoCIF, indent: true },
+    { label: "CIF — Tarifa", value: data.cif.varTarifaCIF, indent: true },
+    {
+      label: "Materiales (subtotal)",
+      value: data.mpd.impactoTotal,
+      indent: false,
+      bold: true,
+    },
+  ];
+
+  return (
+    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, marginBottom: 12, border: "1px solid var(--color-border)", borderRadius: 8, overflow: "hidden" }}>
+      <tbody>
+        <tr style={{ background: "#EEF2FF" }}>
+          <td style={{ padding: "10px 14px", fontWeight: 700, color: "var(--color-primary)" }}>Costo Estándar</td>
+          <td style={{ padding: "10px 14px", textAlign: "right", fontWeight: 700, color: "var(--color-primary)", whiteSpace: "nowrap" }}>{COP(data.reconciliacion.costoEstandar)}</td>
+          <td style={{ width: 160, padding: "10px 14px" }} />
+        </tr>
+        {filas.map((f) => (
+          <tr key={f.label} style={{ borderTop: "1px solid var(--color-border)" }}>
+            <td style={{ padding: "8px 14px", paddingLeft: f.indent ? 32 : 14, fontWeight: f.bold ? 700 : undefined, color: "var(--color-text)" }}>
+              {f.label}
+            </td>
+            <td style={{ padding: "8px 14px", textAlign: "right", color: "var(--color-text)", whiteSpace: "nowrap" }}>
+              {f.value != null ? COP(f.value) : "—"}
+            </td>
+            <td style={{ padding: "8px 14px" }}>
+              <VarianzaBadge value={f.value} />
+            </td>
+          </tr>
+        ))}
+        <tr style={{ background: "#FFF7ED", borderTop: "2px solid var(--color-border)" }}>
+          <td style={{ padding: "10px 14px", fontWeight: 700, color: "#92400E" }}>Costo Producción (Odoo)</td>
+          <td style={{ padding: "10px 14px", textAlign: "right", fontWeight: 700, color: "#92400E", whiteSpace: "nowrap" }}>{COP(data.reconciliacion.costoProduccion)}</td>
+          <td style={{ padding: "10px 14px" }} />
+        </tr>
+      </tbody>
+    </table>
+  );
+}
+
+function TopMateriales({ desglose }) {
+  const top5 = [...desglose]
+    .sort((a, b) => Math.abs(b.impactoTotal) - Math.abs(a.impactoTotal))
+    .slice(0, 5);
+
+  if (!top5.length) return null;
+
+  return (
+    <>
+      <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".6px", color: "var(--color-muted)", margin: "16px 0 8px" }}>
+        Principales desviaciones de materiales
+      </div>
+      <div style={{ overflowX: "auto", borderRadius: 8, border: "1px solid var(--color-border)" }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+          <thead>
+            <tr style={{ background: "#F8FAFC", borderBottom: "1px solid var(--color-border)" }}>
+              <th style={{ ...TH }}>Material</th>
+              <th style={{ ...TH, textAlign: "right" }}>Cant. Plan</th>
+              <th style={{ ...TH, textAlign: "right" }}>Cant. Ejec</th>
+              <th style={{ ...TH, textAlign: "right" }}>Var. Cantidad</th>
+              <th style={{ ...TH, textAlign: "right" }}>Var. Precio</th>
+              <th style={{ ...TH, textAlign: "right" }}>Impacto</th>
+            </tr>
+          </thead>
+          <tbody>
+            {top5.map((m, i) => (
+              <tr key={m.insumo} style={{ background: i % 2 === 1 ? "#F8FAFC" : undefined, borderBottom: "1px solid var(--color-border)" }}>
+                <td style={{ ...TD, maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis" }}>{m.insumo}</td>
+                <td style={{ ...TD, textAlign: "right" }}>{fmt(m.cantPlaneado, 4)}</td>
+                <td style={{ ...TD, textAlign: "right" }}>{fmt(m.cantEjecutado, 4)}</td>
+                <td style={{ ...TD, textAlign: "right" }}><VarianzaBadge value={m.varCantidad} /></td>
+                <td style={{ ...TD, textAlign: "right" }}><VarianzaBadge value={m.varPrecio} /></td>
+                <td style={{ ...TD, textAlign: "right" }}><VarianzaBadge value={m.impactoTotal} /></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </>
+  );
+}
+
+function InfoSegTarifa({ label, segStd, segEjec, tarifaReal }) {
+  const fmtSeg = (v) => (v != null ? Number(v).toLocaleString("es-CO", { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : "—");
+  const fmtTarifa = (v) => (v != null ? `$ ${Number(v).toLocaleString("es-CO", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}/seg` : "—");
+  return (
+    <div style={{ display: "flex", gap: 20, flexWrap: "wrap", fontSize: 12, color: "var(--color-muted)", marginBottom: 4 }}>
+      <span><b>{label}</b></span>
+      <span>Std: {fmtSeg(segStd)} seg</span>
+      <span>Ejec: {fmtSeg(segEjec)} seg</span>
+      <span>Tarifa real: {fmtTarifa(tarifaReal)}</span>
+    </div>
+  );
+}
+
+function ModalVariacion({ refId, refMes, onClose }) {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [errorMsg, setErrorMsg] = useState(null);
+
+  useEffect(() => {
+    referenciasApi.variacion(refId, refMes)
+      .then(setData)
+      .catch((e) => setErrorMsg(e.message))
+      .finally(() => setLoading(false));
+  }, [refId, refMes]);
+
+  return (
+    <div className="overlay" onClick={onClose}>
+      <div
+        className="modal"
+        style={{ width: 740, maxWidth: "96vw", maxHeight: "92vh" }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h3 className="modal-title" style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <BarChart2 size={20} />
+          Análisis de Variación — {refId}
+          <button
+            onClick={onClose}
+            style={{ marginLeft: "auto", background: "none", border: "none", cursor: "pointer", color: "var(--color-muted)", padding: 4 }}
+          >
+            <X size={22} />
+          </button>
+        </h3>
+
+        {loading && <div className="spinner-wrap"><div className="spinner" /></div>}
+
+        {errorMsg && (
+          <div className="alert alert-error">
+            <AlertCircle size={16} /> {errorMsg}
+          </div>
+        )}
+
+        {data && !loading && (
+          <>
+            {data.datosIncompletos ? (
+              <div className="alert alert-warning" style={{ marginTop: 12 }}>
+                <AlertCircle size={16} />
+                Reimporta la orden para ver el análisis de variación
+              </div>
+            ) : (
+              <>
+                {data.inconsistenciaStd && (
+                  <div className="alert alert-warning" style={{ marginBottom: 16 }}>
+                    <AlertCircle size={16} />
+                    Los segundos estándar de MOD no coinciden con los de Carga Fabril en Odoo. El estándar de MOD puede estar inflado.
+                  </div>
+                )}
+
+                <BridgeTable data={data} />
+
+                <div style={{ background: "#F8FAFC", border: "1px solid var(--color-border)", borderRadius: 8, padding: "10px 14px", marginBottom: 4 }}>
+                  <InfoSegTarifa label="MOD" segStd={data.mod.segStd} segEjec={data.mod.segEjec} tarifaReal={data.mod.tarifaRealMOD} />
+                  <InfoSegTarifa label="CIF" segStd={data.cif.segStd} segEjec={data.cif.segEjec} tarifaReal={data.cif.tarifaRealCIF} />
+                </div>
+
+                <TopMateriales desglose={data.mpd.desglose} />
+
+                <div style={{ fontSize: 11, color: "var(--color-muted)", marginTop: 12, borderTop: "1px solid var(--color-border)", paddingTop: 8 }}>
+                  Conciliación: diferencia {COP(data.reconciliacion.diffTotal)} — suma varianzas {COP(data.reconciliacion.sumVarianzas)} — residual {COP(Math.abs(data.reconciliacion.residual))}
+                </div>
+              </>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── Componente principal ──────────────────────────────────────────────────────
 export default function Referencias({ referencias, materiales, parametros, reload, mesActivo }) {
   const [busqueda, setBusqueda] = useState("");
@@ -228,6 +416,8 @@ export default function Referencias({ referencias, materiales, parametros, reloa
   const [saving, setSaving] = useState(false);
   const [matSelectId, setMatSelectId] = useState("");
   const [matSelectQty, setMatSelectQty] = useState("");
+
+  const [modalVariacion, setModalVariacion] = useState(null);
 
   const [drawerRef, setDrawerRef] = useState(null);
   const [drawerEditingInfo, setDrawerEditingInfo] = useState(false);
@@ -506,6 +696,9 @@ export default function Referencias({ referencias, materiales, parametros, reloa
                     <button onClick={(e) => { e.stopPropagation(); openEdit(r); }} className="btn btn-ghost">
                       <Pencil size={16} /> Editar
                     </button>
+                    <button onClick={(e) => { e.stopPropagation(); setModalVariacion({ refId: r.id, refMes: r.mes }); }} className="btn btn-ghost">
+                      <BarChart2 size={16} /> Variación
+                    </button>
                     <button onClick={(e) => { e.stopPropagation(); handleDelete(r); }} className="btn btn-ghost-danger">
                       <Trash2 size={16} /> Eliminar
                     </button>
@@ -633,6 +826,15 @@ export default function Referencias({ referencias, materiales, parametros, reloa
             </form>
           </div>
         </div>
+      )}
+
+      {/* Modal Análisis de Variación */}
+      {modalVariacion && (
+        <ModalVariacion
+          refId={modalVariacion.refId}
+          refMes={modalVariacion.refMes}
+          onClose={() => setModalVariacion(null)}
+        />
       )}
 
       {/* Drawer detalle — Nivel 2 */}

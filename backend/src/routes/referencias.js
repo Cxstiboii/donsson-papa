@@ -129,6 +129,153 @@ router.post("/", async (req, res) => {
   }
 });
 
+const TARIFA_STD_MOD = 3.80;
+const TARIFA_STD_CIF = 9.30;
+
+router.get("/:id/variacion", async (req, res) => {
+  try {
+    const refId = req.params.id;
+    const mes = req.query.mes;
+
+    const ref = await prisma.referencia.findUnique({ where: { id: refId } });
+    if (!ref) return res.status(404).json({ error: "Referencia no encontrada" });
+
+    const allOrders = await prisma.costOrder.findMany({
+      where: { refDonsson: refId },
+      include: { laborItems: true, materials: true },
+    });
+
+    const mesToFilter = mes || ref.mes;
+    const orders = allOrders.filter((o) => {
+      if (!mesToFilter) return true;
+      return mesFromDate(o.fechaFinal) === mesToFilter;
+    });
+
+    if (!orders.length) {
+      return res.status(404).json({ error: "No hay órdenes importadas para esta referencia en el período seleccionado" });
+    }
+
+    // Guard: cantStd is nullable — orders imported before this feature may lack it
+    const tieneStd = orders.some((o) => o.laborItems.some((l) => l.cantStd !== null));
+    if (!tieneStd) {
+      return res.json({ datosIncompletos: true });
+    }
+
+    let segStdMOD = 0, segEjecMOD = 0, vrEjecMOD = 0, vrStdMOD = 0;
+    let segStdCIF = 0, segEjecCIF = 0, vrEjecCIF = 0, vrStdCIF = 0;
+    const materialesMapa = {};
+    let costoProduccion = 0;
+
+    for (const order of orders) {
+      costoProduccion += order.totalEjecutado;
+
+      for (const l of order.laborItems) {
+        if (l.tipo === "mano_obra") {
+          segStdMOD += l.cantStd ?? 0;
+          segEjecMOD += l.cantEjecutado;
+          vrEjecMOD += l.vrEjecutado;
+          vrStdMOD += l.vrStd ?? 0;
+        } else if (l.tipo === "carga_fabril") {
+          segStdCIF += l.cantStd ?? 0;
+          segEjecCIF += l.cantEjecutado;
+          vrEjecCIF += l.vrEjecutado;
+          vrStdCIF += l.vrStd ?? 0;
+        }
+      }
+
+      for (const m of order.materials) {
+        if (!materialesMapa[m.insumo]) {
+          materialesMapa[m.insumo] = { insumo: m.insumo, cantPlaneado: 0, vrPlaneado: 0, cantEjecutado: 0, vrEjecutado: 0 };
+        }
+        materialesMapa[m.insumo].cantPlaneado += m.cantPlaneado;
+        materialesMapa[m.insumo].vrPlaneado += m.vrPlaneado;
+        materialesMapa[m.insumo].cantEjecutado += m.cantEjecutado;
+        materialesMapa[m.insumo].vrEjecutado += m.vrEjecutado;
+      }
+    }
+
+    // MOD variance decomposition (positive = favorable = real cheaper than standard)
+    const tarifaRealMOD = segEjecMOD > 0 ? vrEjecMOD / segEjecMOD : null;
+    const varTiempoMOD = (segStdMOD - segEjecMOD) * TARIFA_STD_MOD;
+    const varTarifaMOD = tarifaRealMOD !== null ? (TARIFA_STD_MOD - tarifaRealMOD) * segEjecMOD : null;
+
+    // CIF variance decomposition
+    const tarifaRealCIF = segEjecCIF > 0 ? vrEjecCIF / segEjecCIF : null;
+    const varTiempoCIF = (segStdCIF - segEjecCIF) * TARIFA_STD_CIF;
+    const varTarifaCIF = tarifaRealCIF !== null ? (TARIFA_STD_CIF - tarifaRealCIF) * segEjecCIF : null;
+
+    // MPD variance decomposition per material
+    const mpdDesglose = Object.values(materialesMapa).map((m) => {
+      const precioPlan = m.cantPlaneado > 0 ? m.vrPlaneado / m.cantPlaneado : null;
+      const precioEjec = m.cantEjecutado > 0 ? m.vrEjecutado / m.cantEjecutado : null;
+      const varCantidad = precioPlan !== null ? (m.cantPlaneado - m.cantEjecutado) * precioPlan : null;
+      const varPrecio = precioPlan !== null && precioEjec !== null ? (precioPlan - precioEjec) * m.cantEjecutado : null;
+      const impactoTotal = m.vrPlaneado - m.vrEjecutado;
+      return {
+        insumo: m.insumo,
+        cantPlaneado: m.cantPlaneado,
+        cantEjecutado: m.cantEjecutado,
+        precioPlan,
+        precioEjec,
+        varCantidad,
+        varPrecio,
+        impactoTotal,
+      };
+    });
+
+    const mpdImpactoTotal = mpdDesglose.reduce((s, m) => s + m.impactoTotal, 0);
+    const mpdVrPlanTotal = Object.values(materialesMapa).reduce((s, m) => s + m.vrPlaneado, 0);
+    const mpdVrEjecTotal = Object.values(materialesMapa).reduce((s, m) => s + m.vrEjecutado, 0);
+
+    // Known Odoo master-data issue: MOD and CIF standard seconds should match
+    const inconsistenciaStd = segStdCIF > 0 && Math.abs(segStdMOD - segStdCIF) > 0.5;
+
+    // Reconciliation — residual comes from Odoo rounding (vrStd ≠ cantStd × tarifa)
+    const costoEstandar = vrStdMOD + vrStdCIF + mpdVrPlanTotal;
+    const diffTotal = costoEstandar - costoProduccion;
+    const sumVarianzas = varTiempoMOD + (varTarifaMOD ?? 0) + varTiempoCIF + (varTarifaCIF ?? 0) + mpdImpactoTotal;
+    const residual = diffTotal - sumVarianzas;
+
+    res.json({
+      refId,
+      mes: mesToFilter,
+      ordenes: orders.length,
+      datosIncompletos: false,
+      mod: {
+        segStd: segStdMOD,
+        segEjec: segEjecMOD,
+        tarifaRealMOD,
+        varTiempoMOD,
+        varTarifaMOD,
+      },
+      cif: {
+        segStd: segStdCIF,
+        segEjec: segEjecCIF,
+        tarifaRealCIF,
+        varTiempoCIF,
+        varTarifaCIF,
+      },
+      mpd: {
+        desglose: mpdDesglose,
+        vrPlanTotal: mpdVrPlanTotal,
+        vrEjecTotal: mpdVrEjecTotal,
+        impactoTotal: mpdImpactoTotal,
+      },
+      inconsistenciaStd,
+      reconciliacion: {
+        costoEstandar,
+        costoProduccion,
+        diffTotal,
+        sumVarianzas,
+        residual,
+      },
+    });
+  } catch (e) {
+    console.error("Error en análisis de variación:", e);
+    res.status(500).json({ error: "Error al calcular el análisis de variación" });
+  }
+});
+
 router.put("/:id", async (req, res) => {
   try {
     const { familia, segMOD, cifUnitario, costoReal, mes, consumos } = req.body;
