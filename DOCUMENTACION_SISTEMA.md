@@ -58,7 +58,7 @@ Autenticación: JWT (contraseña única, 30 días de validez)
 | DELETE | `/api/referencias/:id` | Elimina referencia y sus consumos |
 | PATCH | `/api/referencias/:id/costoReal` | Actualiza solo el costo real Odoo (campo manual) |
 | GET | `/api/referencias/:id/variacion` | Devuelve análisis de variación detallado |
-| GET | `/api/parametros` | Lee pctGAV y pctMargen (y tarifaMOD no usada) |
+| GET | `/api/parametros` | Lee pctGAV y pctMargen (`tarifaMOD` se devuelve pero está deprecada — no afecta cálculos) |
 | PUT | `/api/parametros` | Actualiza parámetros |
 | GET | `/api/importar-costos` | Lista todas las órdenes importadas |
 | POST | `/api/importar-costos` | **Importa un archivo Detalle_de_Costos.xls** |
@@ -98,7 +98,7 @@ Autenticación: JWT (contraseña única, 30 días de validez)
 | `Material` | Catálogo de materiales: código, nombre, unidad, costo unitario (COP), proveedor |
 | `Referencia` | SKU de producto: código, familia (AAA/A/B/C), mes de referencia, `segMOD` (COP de MOD estándar), `cifUnitario` (COP de CIF estándar), `costoReal` (costo Odoo ingresado manualmente) |
 | `Consumo` | Relación muchos-a-muchos entre Referencia y Material: cantidad por unidad producida |
-| `Parametros` | Fila única (id=1): `pctGAV` (% gastos de admin), `pctMargen` (% margen de venta), `tarifaMOD` (visible en exportación, no usado en cálculos) |
+| `Parametros` | Fila única (id=1): `pctGAV` (% gastos de admin), `pctMargen` (% margen de venta), `tarifaMOD` (**DEPRECATED** — campo conservado en DB para estabilidad del schema pero no se usa en cálculos ni se exporta) |
 | `Usuario` | Fila única (id=1): hash bcrypt de la contraseña |
 | `CostOrder` | Encabezado de una orden importada: número de orden, ref Donsson, producto, cantidad fabricada, totales planeado/ejecutado/variación |
 | `CostLabor` | Líneas de mano de obra/CIF de una orden: proceso, cantStd, vrStd, cantEjecutado, vrEjecutado, etc. |
@@ -229,7 +229,7 @@ La tabla principal en la pestaña **Referencias** muestra una fila por referenci
 ### Columna **MOD** (Mano de obra directa estándar)
 - **Fuente cuando hay datos importados**: suma de `CostLabor.vrStd` de filas tipo `mano_obra` de todas las órdenes del mes.
 - **Fuente sin importación**: `Referencia.segMOD` — valor ingresado manualmente en el campo "MOD manual (COP)".
-- ⚠️ **El campo se llama `segMOD` en la DB pero almacena COP, no segundos.**
+- Nota: el campo se llama `segMOD` en la DB pero **almacena COP**, no segundos. En el Excel exportado se etiqueta correctamente como "MOD (COP)".
 
 ### Columna **CIF** (Carga fabril estándar)
 - **Fuente cuando hay datos importados**: `CostLabor.vrStd` de la fila tipo `carga_fabril`.
@@ -249,9 +249,9 @@ Costo Estándar = MPD + MOD + CIF
 ```
 Variación % = (Costo Producción − Costo Estándar) / Costo Estándar × 100
 ```
-- Resultado **positivo** = Odoo ejecutó MÁS que el estándar (DESFAVORABLE, mayor costo real).
-- Resultado **negativo** = Odoo ejecutó MENOS que el estándar (FAVORABLE, menor costo real).
-- ⚠️ **Hay un bug de color: el sistema actualmente pinta verde (+) y rojo (−), invertido respecto a lo esperado.**
+- Resultado **positivo** = Odoo ejecutó MÁS que el estándar → **DESFAVORABLE** → se pinta en **rojo**.
+- Resultado **negativo** = Odoo ejecutó MENOS que el estándar → **FAVORABLE** → se pinta en **verde**.
+- Convención de color: verde = favorable (ahorro), rojo = desfavorable (sobrecosto). Esta convención aplica al badge de la tabla y al card de Variación % en el drawer de detalle.
 
 ---
 
@@ -293,8 +293,8 @@ Al hacer clic en "Exportar Excel" en la pestaña Referencias, se genera en memor
 |------|-----------|
 | 📊 Resumen Costos | MPD, MOD, CIF, Costo de Producción, % GAV, Costo Total, % Margen, Precio de Venta para cada referencia visible |
 | 🔩 Materiales | Lista de todos los materiales únicos usados, con código, nombre, unidad y costo |
-| 🔢 Matriz Consumos | Cantidades por material y referencia, más filas de MOD (con `segMOD` como número) y CIF |
-| ⚙️ Parámetros | Información de la empresa, tarifa MOD, % GAV, % Margen |
+| 🔢 Matriz Consumos | Cantidades por material y referencia, más fila **MOD (COP)** con el costo COP de MOD estándar por unidad y fila CIF con el costo COP de CIF unitario |
+| ⚙️ Parámetros | Información de la empresa, total MOD mensual, horas disponibles, % GAV, % Margen |
 
 **El archivo se descarga directamente al navegador del operador.**
 

@@ -48,7 +48,7 @@ model Consumo {
 
 model Parametros {
   id        Int   @id @default(1)
-  tarifaMOD Float @default(9500)
+  tarifaMOD Float @default(9500) // DEPRECATED: no interviene en cálculos ni en la exportación — no eliminar para estabilidad del schema
   pctGAV    Float @default(18)
   pctMargen Float @default(25)
 }

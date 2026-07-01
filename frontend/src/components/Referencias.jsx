@@ -662,11 +662,14 @@ export default function Referencias({ referencias, materiales, parametros, reloa
             {filtradas.map((r, rowIdx) => {
               const c = calcCostosEstandar(r, parametros);
               const variacion = c.variacion;
+              // Variación % = (costoOdoo − costoEstandar) / costoEstandar
+              // Positivo = ejecutado más caro que estándar → DESFAVORABLE → rojo
+              // Negativo = ejecutado más barato que estándar → FAVORABLE → verde
               const variacionClass =
                 variacion == null ? ""
-                : variacion > 0 ? "badge-success"
-                : variacion < 0 ? "badge-error"
-                : "badge-success";
+                : variacion > 0 ? "badge-error"
+                : variacion < 0 ? "badge-success"
+                : "badge-info";
               const rowBg = rowIdx % 2 === 1 ? "#F8FAFC" : undefined;
               return (
                 <tr key={r.id} style={{ background: rowBg, cursor: "pointer" }} onClick={() => openDrawer(r)}>
@@ -1116,7 +1119,8 @@ export default function Referencias({ referencias, materiales, parametros, reloa
                             ? `${c.variacion > 0 ? "+" : ""}${c.variacion.toFixed(2)}%`
                             : "—",
                           highlight: false,
-                          color: c.variacion == null ? undefined : c.variacion > 0 ? "#065F46" : c.variacion < 0 ? "#991B1B" : "#374151",
+                          // Positivo → desfavorable → rojo; negativo → favorable → verde
+                          color: c.variacion == null ? undefined : c.variacion > 0 ? "#991B1B" : c.variacion < 0 ? "#065F46" : "#374151",
                         },
                       ].map(({ label, value, highlight, color }) => (
                         <div key={label} style={{

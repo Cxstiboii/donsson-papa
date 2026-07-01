@@ -364,19 +364,12 @@ function buildMatrizConsumos(wb, referencias, calc, parametros) {
   ws.getRow(r).height = 18
   r++
 
-  const tarifaMOD = parametros.tarifaMOD
-  setCell(ws, 1, r, "MOD-T", S.codigo)
-  setCell(ws, 2, r, "Tarifa MOD hora (COP) — ver hoja Parámetros", styleDato(0))
+  // FIX: segMOD almacena COP (no segundos); tarifaMOD no interviene en cálculos
+  setCell(ws, 1, r, "MOD-C", S.codigo)
+  setCell(ws, 2, r, "MOD (COP) por unidad producida ↓", styleDato(0))
   setCell(ws, 3, r, "", styleDato(0))
-  setCell(ws, 4, r, tarifaMOD, S.num, FMT.cop)
-  for (let c = 5; c <= lastCol; c++) setCell(ws, c, r, "", styleNum(0))
-  r++
-
-  setCell(ws, 1, r, "MOD-S", S.codigo)
-  setCell(ws, 2, r, "Segundos MOD por unidad producida ↓", styleDato(1))
-  setCell(ws, 3, r, "", styleDato(1))
-  setCell(ws, 4, r, "", styleNum(1))
-  referencias.forEach((ref, i) => setCell(ws, 5 + i, r, ref.segMOD || 0, styleNum(1), FMT.int))
+  setCell(ws, 4, r, "", styleNum(0))
+  referencias.forEach((ref, i) => setCell(ws, 5 + i, r, ref.segMOD || 0, styleNum(0), FMT.int))
   r++
 
   mergeFill(ws, r, 1, 4, S.totalOscuroL)
@@ -442,7 +435,7 @@ function buildParametros(wb, parametros) {
   sep(9, "MANO DE OBRA DIRECTA")
   fila(10, "Total costo MOD mensual (COP)", 12300000, styleNum(10), FMT.cop)
   fila(11, "Total horas MOD disponibles/mes", 768, { ...styleNum(11), font: font({ bold: true, size: 10, color: { argb: C.azulM } }) }, FMT.int)
-  fila(12, "Tarifa MOD por hora (COP) — automático", parametros.tarifaMOD, { ...styleNum(12), font: font({ bold: true, size: 10, color: { argb: "FF000000" } }) }, FMT.cop)
+  // DEPRECATED: tarifaMOD no se usa en ningún cálculo — fila eliminada del reporte
 
   for (let c = 1; c <= 4; c++) setCell(ws, c, 13, "", S.blank)
   sep(14, "GASTOS GENERALES")
