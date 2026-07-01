@@ -23,5 +23,5 @@ WHERE id NOT IN (
 );
 
 -- ── Crear índices únicos ────────────────────────────────────────────────────
-CREATE UNIQUE INDEX "CostLabor_orderId_proceso_key" ON "CostLabor"("orderId", "proceso");
-CREATE UNIQUE INDEX "CostMaterial_orderId_insumo_key" ON "CostMaterial"("orderId", "insumo");
+CREATE UNIQUE INDEX IF NOT EXISTS "CostLabor_orderId_proceso_key" ON "CostLabor"("orderId", "proceso");
+CREATE UNIQUE INDEX IF NOT EXISTS "CostMaterial_orderId_insumo_key" ON "CostMaterial"("orderId", "insumo");
