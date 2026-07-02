@@ -52,10 +52,11 @@ Autenticación: JWT (contraseña única, 30 días de validez)
 | DELETE | `/api/materiales/:id` | Elimina material (solo si no está en uso) |
 | PATCH | `/api/materiales/:id/rename` | Cambia el código ID de un material redirigiendo sus consumos |
 | POST | `/api/materiales/importar-csv` | Importa catálogo de materiales desde CSV/Excel de Odoo |
-| GET | `/api/referencias` | Lista referencias con costos importados agregados |
+| GET | `/api/referencias` | Lista referencias — una fila por cada combinación **(referencia, mes)** con órdenes importadas, o una fila por referencia si es manual. Ver sección 5. |
 | POST | `/api/referencias` | Crea una referencia manualmente |
 | PUT | `/api/referencias/:id` | Edita familia, mes, MOD, CIF, costoReal y consumos |
-| DELETE | `/api/referencias/:id` | Elimina referencia y sus consumos |
+| DELETE | `/api/referencias/:id` | Elimina la referencia completa **y todas sus órdenes importadas de todos los meses**, no solo un mes |
+| DELETE | `/api/referencias/:id/ordenes/:mes` | Elimina únicamente las órdenes importadas de un mes específico; la referencia y sus demás meses quedan intactos |
 | PATCH | `/api/referencias/:id/costoReal` | Actualiza solo el costo real Odoo (campo manual) |
 | GET | `/api/referencias/:id/variacion` | Devuelve análisis de variación detallado |
 | GET | `/api/parametros` | Devuelve `pctGAV`, `pctMargen`, `tarifaMOD` — los tres campos están **deprecados** (no afectan cálculos ni se exportan; se conservan en la fila única de la tabla por estabilidad del schema) |
@@ -207,7 +208,22 @@ FRONTEND (después de importación exitosa):
 
 ## 5. ¿De dónde sale cada número? (columnas de la tabla principal)
 
-La tabla principal en la pestaña **Referencias** muestra una fila por referencia. Cada valor se obtiene así:
+### El modelo (referencia, mes)
+
+La tabla principal en la pestaña **Referencias** muestra:
+
+- **Una fila por cada combinación (referencia, mes)** cuando la referencia tiene órdenes importadas (`CostOrder`) — un mes distinto por cada valor único de `mesFromDate(CostOrder.fechaFinal)` encontrado entre sus órdenes. Si una referencia tiene órdenes en enero y en marzo, aparecen **dos filas independientes**, cada una con su propio MPD/MOD/CIF/Costo Estándar/Costo Producción/Variación calculados **solo** con las órdenes de ese mes.
+- **Una única fila** (comportamiento sin cambios) cuando la referencia es manual — no tiene ninguna orden importada. En ese caso el mes sigue viniendo de `Referencia.mes`.
+
+**Por qué se hizo así:** antes, `Referencia.mes` era un campo escalar que se sobreescribía en cada importación (`importarCostos.js`), así que solo el último mes importado era visible — los meses anteriores de la misma referencia seguían en la base de datos (nada se perdía a nivel de `CostOrder`/`CostLabor`/`CostMaterial`) pero desaparecían de la tabla, el drawer y el Excel exportado. Ahora el mes de cada fila se deriva directamente de `CostOrder.fechaFinal` (la misma lógica que ya usaba `GET /api/referencias/:id/variacion`, función `mesFromDate`), así que reimportar un mes nuevo ya no oculta los meses previos.
+
+**`Referencia.mes` no desapareció**: sigue existiendo en el schema, se sigue escribiendo en cada importación, y sigue siendo la única fuente para referencias manuales. Para una referencia con órdenes importadas, ese campo ahora es solo metadata informal de "último mes importado" — ya no determina qué filas se muestran ni qué se agrega.
+
+**Identidad de fila vs. identidad de registro:** el `id` (código) deja de ser único dentro de la lista que devuelve `GET /api/referencias` cuando una referencia tiene varios meses — la identidad única real de una fila es `(id, mes)`. Sin embargo, en la base de datos sigue existiendo un único registro `Referencia` por código: familia, MOD/CIF manual, costo real Odoo y consumos manuales son atributos del código completo, no de un mes en particular, así que editarlos desde el drawer de **cualquiera** de sus filas afecta a la referencia entera (esto no es nuevo, ya era así antes de este cambio). El campo **Mes** del formulario de edición se deshabilita cuando la referencia tiene órdenes importadas, precisamente porque editarlo ya no tiene ningún efecto sobre el agrupamiento de filas.
+
+**Eliminar una referencia vs. eliminar solo un mes:** el botón "Eliminar" de una fila borra la referencia completa — **todos** sus meses y todos sus datos manuales — no solo la fila donde se hizo clic; el diálogo de confirmación lo advierte explícitamente y lista los meses afectados cuando hay más de uno. Para borrar solo las órdenes de un mes específico (dejando la referencia y sus demás meses intactos) existe el botón separado "Eliminar mes", que llama a `DELETE /api/referencias/:id/ordenes/:mes`.
+
+Cada valor de la fila se obtiene así:
 
 ### Columna **Código**
 - Fuente: `Referencia.id` — texto libre asignado al crear la referencia, o extraído de `[Ref donsson]` al importar.
@@ -218,20 +234,20 @@ La tabla principal en la pestaña **Referencias** muestra una fila por referenci
 - El operador puede cambiarla manualmente en el drawer.
 
 ### Columna **Mes**
-- Fuente: `Referencia.mes` — en formato YYYY-MM, mostrado como "Ene 2025".
-- Al importar una orden, el mes del formulario de importación sobreescribe este campo.
+- **Fuente cuando hay datos importados**: derivado de `CostOrder.fechaFinal` (mismo criterio que `/variacion`), no de `Referencia.mes`. Formato YYYY-MM, mostrado como "Ene 2025".
+- **Fuente sin importación (manual)**: `Referencia.mes`, editable como siempre.
 
 ### Columna **MPD** (Materiales directos planeados)
-- **Fuente cuando hay datos importados**: suma de `CostMaterial.vrPlaneado` de todas las órdenes del mes de la referencia.
+- **Fuente cuando hay datos importados**: suma de `CostMaterial.vrPlaneado` de las órdenes **de ese mes específico** de la referencia (no de todas sus órdenes).
 - **Fuente cuando no hay importación**: suma de `consumo.cantidad × material.costo` para cada material consumido registrado manualmente.
 
 ### Columna **MOD** (Mano de obra directa estándar)
-- **Fuente cuando hay datos importados**: suma de `CostLabor.vrStd` de filas tipo `mano_obra` de todas las órdenes del mes.
+- **Fuente cuando hay datos importados**: suma de `CostLabor.vrStd` de filas tipo `mano_obra` de las órdenes **de ese mes específico**.
 - **Fuente sin importación**: `Referencia.segMOD` — valor ingresado manualmente en el campo "MOD manual (COP)".
 - Nota: el campo se llama `segMOD` en la DB pero **almacena COP**, no segundos. En el Excel exportado se etiqueta correctamente como "MOD (COP)".
 
 ### Columna **CIF** (Carga fabril estándar)
-- **Fuente cuando hay datos importados**: `CostLabor.vrStd` de la fila tipo `carga_fabril`.
+- **Fuente cuando hay datos importados**: `CostLabor.vrStd` de la fila tipo `carga_fabril`, de las órdenes **de ese mes específico**.
 - **Fuente sin importación**: `Referencia.cifUnitario` — valor manual.
 
 ### Columna **Costo Estándar**
@@ -298,6 +314,8 @@ Al hacer clic en "Exportar Excel" en la pestaña Referencias, se genera en memor
 **MPD sin materiales**: si una referencia no tiene materiales (ni consumos manuales ni órdenes importadas), MPD se calcula como `0` y se muestra como `$0` (nunca en blanco ni como "-"); Costo Estándar y Variación % siguen calculándose normalmente con MPD=0.
 
 **Fuente de los materiales por referencia**: igual que en el drawer de detalle de la pantalla Referencias, si la referencia tiene órdenes de Odoo importadas (`costosImportados`) se listan los materiales de esas órdenes (`CostMaterial`); si no, se listan los consumos manuales (`Consumo`/`Material`). Nunca se mezclan ambas fuentes para una misma referencia.
+
+**Filas por (referencia, mes)**: el Excel exporta exactamente las mismas filas que se ven en la tabla — si una referencia tiene órdenes en varios meses, cada mes es una columna/línea independiente. Para que dos meses de la misma referencia no aparezcan con la misma etiqueta ambigua, el encabezado muestra `código (mes)` (por ejemplo `AAA-100 (Mar 2026)`) en vez de solo el código, tanto en "Resumen Costos" como en "Materiales" y "Matriz Consumos".
 
 **El archivo se descarga directamente al navegador del operador.**
 

@@ -14,19 +14,12 @@ function mesFromDate(d) {
   return `${y}-${m}`;
 }
 
-function agregarCostosImportados(ref, ordersByCode) {
-  const related = (ordersByCode[ref.id] || []).filter((o) => {
-    if (!ref.mes) return true;
-    return mesFromDate(o.fechaFinal) === ref.mes;
-  });
-
-  if (!related.length) return { ...ref, costosImportados: null };
-
+function calcCostosDeOrdenes(orders) {
   let mpd = 0, mod = 0, cif = 0, costoOdoo = 0;
   const materialsAll = [];
   const laborAll = [];
 
-  for (const order of related) {
+  for (const order of orders) {
     for (const m of order.materials) mpd += m.vrPlaneado ?? 0;
     for (const l of order.laborItems) {
       if (l.tipo === "mano_obra") mod += l.vrStd ?? 0;
@@ -38,26 +31,45 @@ function agregarCostosImportados(ref, ordersByCode) {
   }
 
   return {
-    ...ref,
-    costosImportados: {
-      mpd,
-      mod,
-      cif,
-      costoEstandar: mpd + mod + cif,
-      costoOdoo,
-      ordenes: related.length,
-      materials: materialsAll,
-      laborItems: laborAll,
-    },
+    mpd,
+    mod,
+    cif,
+    costoEstandar: mpd + mod + cif,
+    costoOdoo,
+    ordenes: orders.length,
+    materials: materialsAll,
+    laborItems: laborAll,
   };
+}
+
+// Expande una referencia en una fila por cada mes con órdenes importadas
+// (derivado de CostOrder.fechaFinal, más reciente primero), o en una única
+// fila usando Referencia.mes si no tiene órdenes importadas (manual).
+function expandirPorMes(ref, ordersByCode) {
+  const orders = ordersByCode[ref.id] || [];
+  if (!orders.length) return [{ ...ref, costosImportados: null }];
+
+  const porMes = {};
+  for (const o of orders) {
+    const mes = mesFromDate(o.fechaFinal);
+    if (!porMes[mes]) porMes[mes] = [];
+    porMes[mes].push(o);
+  }
+
+  return Object.keys(porMes)
+    .sort()
+    .reverse()
+    .map((mes) => ({
+      ...ref,
+      mes,
+      costosImportados: calcCostosDeOrdenes(porMes[mes]),
+    }));
 }
 
 router.get("/", async (req, res) => {
   try {
     const { mes } = req.query;
-    const where = mes ? { mes } : {};
     const referencias = await prisma.referencia.findMany({
-      where,
       include: includeConsumos,
       orderBy: { id: "asc" },
     });
@@ -76,8 +88,10 @@ router.get("/", async (req, res) => {
       ordersByCode[o.refDonsson].push(o);
     }
 
-    const enriched = referencias.map((ref) => agregarCostosImportados(ref, ordersByCode));
-    res.json(enriched);
+    let filas = referencias.flatMap((ref) => expandirPorMes(ref, ordersByCode));
+    if (mes) filas = filas.filter((f) => f.mes === mes);
+
+    res.json(filas);
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: "Error al obtener referencias" });
@@ -327,6 +341,32 @@ router.delete("/:id", async (req, res) => {
     }
     console.error(e);
     res.status(500).json({ error: "Error al eliminar referencia" });
+  }
+});
+
+// Elimina únicamente las órdenes importadas de un mes específico, dejando
+// intacta la Referencia y sus demás meses. CostLabor/CostMaterial se borran
+// en cascada (onDelete: Cascade en schema.prisma).
+router.delete("/:id/ordenes/:mes", async (req, res) => {
+  try {
+    const { id, mes } = req.params;
+    const orders = await prisma.costOrder.findMany({
+      where: { refDonsson: id },
+      select: { id: true, fechaFinal: true },
+    });
+    const idsAEliminar = orders
+      .filter((o) => mesFromDate(o.fechaFinal) === mes)
+      .map((o) => o.id);
+
+    if (!idsAEliminar.length) {
+      return res.status(404).json({ error: "No hay órdenes importadas para esta referencia en ese mes" });
+    }
+
+    await prisma.costOrder.deleteMany({ where: { id: { in: idsAEliminar } } });
+    res.json({ success: true, eliminadas: idsAEliminar.length });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: "Error al eliminar las órdenes del mes seleccionado" });
   }
 });
 

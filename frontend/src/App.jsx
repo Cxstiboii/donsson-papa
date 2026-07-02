@@ -81,7 +81,9 @@ export default function App() {
       return variacion != null && Math.abs(variacion) > 10;
     });
     return {
-      totalReferencias: referenciasFiltradas.length,
+      // Cuenta códigos de referencia únicos, no filas — una referencia con
+      // órdenes en varios meses produce varias filas en referenciasFiltradas.
+      totalReferencias: new Set(referenciasFiltradas.map((r) => r.id)).size,
       totalMateriales: materiales.length,
       conOdoo: conOdoo.length,
       alertas: alertas.length,
@@ -139,7 +141,7 @@ export default function App() {
               ))}
             </select>
             <span style={{ fontSize: 13, background: "#D6E4F0", color: "#1F3864", borderRadius: 12, padding: "2px 10px", fontWeight: 600 }}>
-              {referenciasFiltradas.length} referencia{referenciasFiltradas.length !== 1 ? "s" : ""}
+              {kpis?.totalReferencias ?? referenciasFiltradas.length} referencia{(kpis?.totalReferencias ?? referenciasFiltradas.length) !== 1 ? "s" : ""}
             </span>
           </div>
         )}

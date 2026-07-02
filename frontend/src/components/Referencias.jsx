@@ -431,15 +431,15 @@ export default function Referencias({ referencias, materiales, parametros, reloa
   const [drawerAddMatQty, setDrawerAddMatQty] = useState("");
   const [drawerSaving, setDrawerSaving] = useState(false);
 
-  const drawerRefIdRef = useRef(null);
+  const drawerRefKeyRef = useRef(null);
 
   useEffect(() => {
-    drawerRefIdRef.current = drawerRef?.id ?? null;
+    drawerRefKeyRef.current = drawerRef ? `${drawerRef.id}-${drawerRef.mes}` : null;
   }, [drawerRef]);
 
   useEffect(() => {
-    if (!drawerRefIdRef.current) return;
-    const updated = referencias.find((r) => r.id === drawerRefIdRef.current);
+    if (!drawerRefKeyRef.current) return;
+    const updated = referencias.find((r) => `${r.id}-${r.mes}` === drawerRefKeyRef.current);
     if (updated) setDrawerRef(updated);
   }, [referencias]);
 
@@ -527,8 +527,26 @@ export default function Referencias({ referencias, materiales, parametros, reloa
   }
 
   async function handleDelete(r) {
-    if (!confirm(`¿Eliminar la referencia ${r.id}?`)) return;
+    const filasRelacionadas = referencias.filter((x) => x.id === r.id);
+    if (r.costosImportados && filasRelacionadas.length > 1) {
+      const meses = filasRelacionadas.map((x) => mesLabel(x.mes)).join(", ");
+      const ok = confirm(
+        `La referencia ${r.id} tiene órdenes importadas en ${filasRelacionadas.length} meses distintos (${meses}).\n\n` +
+        `Eliminar la referencia borrará TODOS esos meses, no solo ${mesLabel(r.mes)}.\n\n` +
+        `Si solo quieres borrar las órdenes de ${mesLabel(r.mes)}, cancela y usa el botón "Eliminar mes".\n\n` +
+        `¿Eliminar la referencia completa de todas formas?`
+      );
+      if (!ok) return;
+    } else {
+      if (!confirm(`¿Eliminar la referencia ${r.id}?`)) return;
+    }
     try { await referenciasApi.remove(r.id); await reload(); }
+    catch (e) { alert(e.message); }
+  }
+
+  async function handleDeleteMes(r) {
+    if (!confirm(`¿Eliminar solo las órdenes de ${r.id} del mes ${mesLabel(r.mes)}?\n\nLa referencia y sus demás meses no se verán afectados.`)) return;
+    try { await referenciasApi.eliminarOrdenesMes(r.id, r.mes); await reload(); }
     catch (e) { alert(e.message); }
   }
 
@@ -672,7 +690,7 @@ export default function Referencias({ referencias, materiales, parametros, reloa
                 : "badge-info";
               const rowBg = rowIdx % 2 === 1 ? "#F8FAFC" : undefined;
               return (
-                <tr key={r.id} style={{ background: rowBg, cursor: "pointer" }} onClick={() => openDrawer(r)}>
+                <tr key={`${r.id}-${r.mes}`} style={{ background: rowBg, cursor: "pointer" }} onClick={() => openDrawer(r)}>
                   <td>
                     {r.id}
                     {c.fuenteImportada && (
@@ -702,7 +720,12 @@ export default function Referencias({ referencias, materiales, parametros, reloa
                     <button onClick={(e) => { e.stopPropagation(); setModalVariacion({ refId: r.id, refMes: r.mes }); }} className="btn btn-ghost">
                       <BarChart2 size={16} /> Variación
                     </button>
-                    <button onClick={(e) => { e.stopPropagation(); handleDelete(r); }} className="btn btn-ghost-danger">
+                    {r.costosImportados && (
+                      <button onClick={(e) => { e.stopPropagation(); handleDeleteMes(r); }} className="btn btn-ghost-danger" title="Elimina solo las órdenes de este mes; la referencia y sus demás meses quedan intactos">
+                        <Trash2 size={16} /> Eliminar mes
+                      </button>
+                    )}
+                    <button onClick={(e) => { e.stopPropagation(); handleDelete(r); }} className="btn btn-ghost-danger" title={r.costosImportados ? "Elimina la referencia completa, incluyendo todos sus meses" : "Elimina la referencia"}>
                       <Trash2 size={16} /> Eliminar
                     </button>
                   </td>
@@ -751,7 +774,14 @@ export default function Referencias({ referencias, materiales, parametros, reloa
               <div className="field-grid-2">
                 <div>
                   <label className="field-label">Mes</label>
-                  <input type="month" className="input" value={form.mes} onChange={(e) => setForm({ ...form, mes: e.target.value })} required />
+                  <input type="month" className="input" value={form.mes} onChange={(e) => setForm({ ...form, mes: e.target.value })} required
+                    disabled={!!editing?.costosImportados}
+                    title={editing?.costosImportados ? "El mes proviene de las órdenes importadas de Odoo y no se puede editar aquí" : undefined} />
+                  {editing?.costosImportados && (
+                    <div style={{ fontSize: 11, color: "var(--color-muted)", marginTop: 4 }}>
+                      Proviene de las órdenes importadas — no editable
+                    </div>
+                  )}
                 </div>
                 <div>
                   <label className="field-label">Costo real Odoo</label>
@@ -906,7 +936,14 @@ export default function Referencias({ referencias, materiales, parametros, reloa
                       </div>
                       <div>
                         <label className="field-label">Mes</label>
-                        <input type="month" className="input" value={drawerInfoForm.mes} onChange={(e) => setDrawerInfoForm((f) => ({ ...f, mes: e.target.value }))} />
+                        <input type="month" className="input" value={drawerInfoForm.mes} onChange={(e) => setDrawerInfoForm((f) => ({ ...f, mes: e.target.value }))}
+                          disabled={!!drawerRef?.costosImportados}
+                          title={drawerRef?.costosImportados ? "El mes proviene de las órdenes importadas de Odoo y no se puede editar aquí" : undefined} />
+                        {drawerRef?.costosImportados && (
+                          <div style={{ fontSize: 11, color: "var(--color-muted)", marginTop: 4 }}>
+                            Proviene de las órdenes importadas — no editable
+                          </div>
+                        )}
                       </div>
                     </div>
                     <div className="field-grid-2">

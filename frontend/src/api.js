@@ -68,6 +68,8 @@ export const referenciasApi = {
   create: (data) => request("/referencias", { method: "POST", body: JSON.stringify(data) }),
   update: (id, data) => request(`/referencias/${id}`, { method: "PUT", body: JSON.stringify(data) }),
   remove: (id) => request(`/referencias/${id}`, { method: "DELETE" }),
+  eliminarOrdenesMes: (id, mes) =>
+    request(`/referencias/${id}/ordenes/${encodeURIComponent(mes)}`, { method: "DELETE" }),
   updateCostoReal: (id, costoReal) =>
     request(`/referencias/${id}/costoReal`, {
       method: "PATCH",

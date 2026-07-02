@@ -1,5 +1,5 @@
 import ExcelJS from 'exceljs'
-import { calcCostosEstandar } from './utils/costos.js'
+import { calcCostosEstandar, mesLabel } from './utils/costos.js'
 
 // Paleta — extraída visualmente del Excel original Donsoon
 const C = {
@@ -236,6 +236,11 @@ function materialesUnicos(referencias) {
   })
   return [...map.values()].sort((a, b) => String(a.codigo).localeCompare(String(b.codigo)))
 }
+// Distingue referencias que aparecen más de una vez con meses distintos
+// (una misma Referencia con órdenes importadas en varios meses).
+function refLabel(ref) {
+  return ref.mes ? `${ref.id} (${mesLabel(ref.mes)})` : ref.id
+}
 function landscapePage(ws) {
   ws.pageSetup = { orientation: "landscape", fitToPage: true, fitToWidth: 1, fitToHeight: 0 }
 }
@@ -257,7 +262,7 @@ function buildResumenCostos(wb, referencias, calc, periodoLabel) {
   ws.getRow(2).height = 20
 
   setCell(ws, 1, 3, "Referencia →", S.hSec)
-  calc.forEach((it, i) => setCell(ws, 2 + i, 3, it.ref.id, S.hSec))
+  calc.forEach((it, i) => setCell(ws, 2 + i, 3, refLabel(it.ref), S.hSec))
   ws.getRow(3).height = 22
 
   setCell(ws, 1, 4, "Nombre →", S.dato)
@@ -293,7 +298,7 @@ function buildResumenCostos(wb, referencias, calc, periodoLabel) {
 
   for (let r = 5; r <= 11; r++) ws.getRow(r).height = 18
 
-  autofitCols(ws, [32, ...Array(N).fill(14)])
+  autofitCols(ws, [32, ...Array(N).fill(18)])
   ws.views = [{ state: "frozen", ySplit: 4 }]
   landscapePage(ws)
   return ws
@@ -323,7 +328,7 @@ function buildMateriales(wb, referencias) {
   referencias.forEach((ref) => {
     const lineas = materialesDeReferencia(ref)
     lineas.forEach((m) => {
-      setCell(ws, 1, r, ref.id, S.codigo)
+      setCell(ws, 1, r, refLabel(ref), S.codigo)
       setCell(ws, 2, r, m.origen, styleDato(idx))
       setCell(ws, 3, r, m.codigo, styleDato(idx))
       setCell(ws, 4, r, m.nombre, styleDato(idx))
@@ -336,7 +341,7 @@ function buildMateriales(wb, referencias) {
     })
   })
 
-  autofitCols(ws, [12, 10, 22, 26, 14, 16, 14, 16])
+  autofitCols(ws, [20, 10, 22, 26, 14, 16, 14, 16])
   ws.views = [{ state: "frozen", ySplit: 3 }]
   landscapePage(ws)
   return ws
@@ -363,7 +368,7 @@ function buildMatrizConsumos(wb, referencias, calc) {
   setCell(ws, 2, 3, "MATERIAL", S.hSec)
   setCell(ws, 3, 3, "UNIDAD", S.hSec)
   setCell(ws, 4, 3, "COSTO UNIT.", S.hSec)
-  calc.forEach((it, i) => setCell(ws, 5 + i, 3, it.ref.id, S.hSec))
+  calc.forEach((it, i) => setCell(ws, 5 + i, 3, refLabel(it.ref), S.hSec))
   ws.getRow(3).height = 22
 
   for (let c = 1; c <= 4; c++) setCell(ws, c, 4, "", { fill: fill(C.azulXC), border: bd() })
@@ -429,7 +434,7 @@ function buildMatrizConsumos(wb, referencias, calc) {
   calc.forEach((it, i) => setCell(ws, 5 + i, r, it.cif, S.totalOscuro, FMT.cop))
   ws.getRow(r).height = 20
 
-  autofitCols(ws, [10, 26, 10, 14, ...Array(N).fill(13)])
+  autofitCols(ws, [10, 26, 10, 14, ...Array(N).fill(16)])
   ws.views = [{ state: "frozen", ySplit: 5 }]
   landscapePage(ws)
   return ws
