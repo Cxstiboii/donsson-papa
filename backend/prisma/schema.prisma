@@ -49,8 +49,8 @@ model Consumo {
 model Parametros {
   id        Int   @id @default(1)
   tarifaMOD Float @default(9500) // DEPRECATED: no interviene en cálculos ni en la exportación — no eliminar para estabilidad del schema
-  pctGAV    Float @default(18)
-  pctMargen Float @default(25)
+  pctGAV    Float @default(18) // DEPRECATED: gastos adm. y ventas — ya no se usa en la exportación (reporte solo de costos); no eliminar para estabilidad del schema
+  pctMargen Float @default(25) // DEPRECATED: margen de utilidad sobre ventas — ya no se usa en la exportación (reporte solo de costos); no eliminar para estabilidad del schema
 }
 
 model Usuario {

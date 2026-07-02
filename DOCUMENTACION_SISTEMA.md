@@ -58,7 +58,7 @@ Autenticación: JWT (contraseña única, 30 días de validez)
 | DELETE | `/api/referencias/:id` | Elimina referencia y sus consumos |
 | PATCH | `/api/referencias/:id/costoReal` | Actualiza solo el costo real Odoo (campo manual) |
 | GET | `/api/referencias/:id/variacion` | Devuelve análisis de variación detallado |
-| GET | `/api/parametros` | Lee pctGAV y pctMargen (`tarifaMOD` se devuelve pero está deprecada — no afecta cálculos) |
+| GET | `/api/parametros` | Devuelve `pctGAV`, `pctMargen`, `tarifaMOD` — los tres campos están **deprecados** (no afectan cálculos ni se exportan; se conservan en la fila única de la tabla por estabilidad del schema) |
 | PUT | `/api/parametros` | Actualiza parámetros |
 | GET | `/api/importar-costos` | Lista todas las órdenes importadas |
 | POST | `/api/importar-costos` | **Importa un archivo Detalle_de_Costos.xls** |
@@ -79,7 +79,6 @@ Autenticación: JWT (contraseña única, 30 días de validez)
 | `components/Referencias.jsx` | **Referencias** | Tabla principal de referencias, drawer de detalle, modal de creación/edición, modal de análisis de variación |
 | `components/Materiales.jsx` | **Materiales** | Catálogo de materiales, CRUD, importación CSV |
 | `components/ImportarCostos.jsx` | **Costos Producción** | Formulario de importación de Detalle_de_Costos.xls, lista de órdenes importadas, detalle por orden |
-| `components/Parametros.jsx` | *(sin pestaña)* | Formulario de parámetros — existe pero no está accesible en la UI actual |
 | `components/Comparativo.jsx` | *(sin pestaña)* | Código muerto — no está montado en ningún tab |
 | `components/ImportarOdoo.jsx` | *(sin pestaña)* | Código muerto — no está montado en ningún tab |
 | `components/ImportarOP.jsx` | *(sin pestaña)* | Código muerto — no está montado (la ruta API sí existe) |
@@ -98,7 +97,7 @@ Autenticación: JWT (contraseña única, 30 días de validez)
 | `Material` | Catálogo de materiales: código, nombre, unidad, costo unitario (COP), proveedor |
 | `Referencia` | SKU de producto: código, familia (AAA/A/B/C), mes de referencia, `segMOD` (COP de MOD estándar), `cifUnitario` (COP de CIF estándar), `costoReal` (costo Odoo ingresado manualmente) |
 | `Consumo` | Relación muchos-a-muchos entre Referencia y Material: cantidad por unidad producida |
-| `Parametros` | Fila única (id=1): `pctGAV` (% gastos de admin), `pctMargen` (% margen de venta), `tarifaMOD` (**DEPRECATED** — campo conservado en DB para estabilidad del schema pero no se usa en cálculos ni se exporta) |
+| `Parametros` | Fila única (id=1): `pctGAV`, `pctMargen`, `tarifaMOD` — los tres campos están **DEPRECATED** (conservados en DB para estabilidad del schema; ya no se usan en cálculos de costo ni se exportan — el reporte es solo de costos, sin ventas ni márgenes) |
 | `Usuario` | Fila única (id=1): hash bcrypt de la contraseña |
 | `CostOrder` | Encabezado de una orden importada: número de orden, ref Donsson, producto, cantidad fabricada, totales planeado/ejecutado/variación |
 | `CostLabor` | Líneas de mano de obra/CIF de una orden: proceso, cantStd, vrStd, cantEjecutado, vrEjecutado, etc. |
@@ -287,14 +286,18 @@ Si los segundos estándar MOD y los segundos estándar CIF difieren en más de 0
 
 ## 7. Flujo de la exportación a Excel
 
-Al hacer clic en "Exportar Excel" en la pestaña Referencias, se genera en memoria un archivo `.xlsx` con 4 hojas:
+Al hacer clic en "Exportar Excel" en la pestaña Referencias, se genera en memoria un archivo `.xlsx` con 4 hojas. El reporte es **puramente de costos** (no incluye ventas, GAV ni márgenes) y todos los valores se calculan con las mismas utilidades compartidas que usa la pantalla (`calcCostosEstandar` de `utils/costos.js`), por lo que coinciden exactamente con lo que muestra la tabla de Referencias.
 
 | Hoja | Contenido |
 |------|-----------|
-| 📊 Resumen Costos | MPD, MOD, CIF, Costo de Producción, % GAV, Costo Total, % Margen, Precio de Venta para cada referencia visible |
-| 🔩 Materiales | Lista de todos los materiales únicos usados, con código, nombre, unidad y costo |
-| 🔢 Matriz Consumos | Cantidades por material y referencia, más fila **MOD (COP)** con el costo COP de MOD estándar por unidad y fila CIF con el costo COP de CIF unitario |
-| ⚙️ Parámetros | Información de la empresa, total MOD mensual, horas disponibles, % GAV, % Margen |
+| 📊 Resumen Costos | MPD, MOD, CIF, Costo Estándar (A+B+C), Costo Producción (Odoo), Variación % y % Materiales/Costo Estándar, para cada referencia visible |
+| 🔩 Materiales | Detalle de cada material por referencia exportada: Origen (Manual u Odoo), código/insumo, nombre, cantidad y valor planeado, y cantidad/valor ejecutado cuando la referencia proviene de una orden importada |
+| 🔢 Matriz Consumos | Cantidades por material y referencia (fusiona materiales manuales y de Odoo por referencia), más fila **MOD (COP)** con el costo COP de MOD estándar por unidad y fila CIF con el costo COP de CIF unitario |
+| ⚙️ Parámetros | Información de la empresa, total MOD mensual (referencial), horas disponibles, nota de CIF y leyenda de colores |
+
+**MPD sin materiales**: si una referencia no tiene materiales (ni consumos manuales ni órdenes importadas), MPD se calcula como `0` y se muestra como `$0` (nunca en blanco ni como "-"); Costo Estándar y Variación % siguen calculándose normalmente con MPD=0.
+
+**Fuente de los materiales por referencia**: igual que en el drawer de detalle de la pantalla Referencias, si la referencia tiene órdenes de Odoo importadas (`costosImportados`) se listan los materiales de esas órdenes (`CostMaterial`); si no, se listan los consumos manuales (`Consumo`/`Material`). Nunca se mezclan ambas fuentes para una misma referencia.
 
 **El archivo se descarga directamente al navegador del operador.**
 
@@ -342,6 +345,6 @@ El frontend compilado queda en `backend/public/` y Express lo sirve como archivo
 | **MPD** | Materiales directos planeados |
 | **MOD** | Mano de obra directa |
 | **CIF** | Carga fabril (costos indirectos de fabricación) |
-| **GAV** | Gastos de administración y ventas (%) |
+| **GAV** | Gastos de administración y ventas (%) — campo **DEPRECATED**, ya no se usa en cálculos ni en la exportación |
 | **AUTO-001** | Material creado automáticamente al importar un insumo no registrado en el catálogo |
 | **Orden** | Número de orden de producción de Odoo (campo único en la DB) |

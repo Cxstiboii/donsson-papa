@@ -1,5 +1,5 @@
 import ExcelJS from 'exceljs'
-import { calcCostos } from './utils/costos.js'
+import { calcCostosEstandar } from './utils/costos.js'
 
 // Paleta — extraída visualmente del Excel original Donsoon
 const C = {
@@ -20,7 +20,7 @@ const C = {
 }
 
 const FMT = {
-  cop:  '"$"#,##0;[Red]-"$"#,##0;"-"',
+  cop:  '"$"#,##0;[Red]-"$"#,##0;"$"0',
   pct:  '0.0%',
   dec3: '0.000',
   int:  '#,##0',
@@ -112,19 +112,7 @@ const S = {
     alignment: { horizontal: "left", vertical: "middle" },
     border: bd(),
   },
-  precioVenta: {
-    font: font({ bold: true, size: 10, color: { argb: C.verde } }),
-    fill: fill(C.verdeF),
-    alignment: { horizontal: "right", vertical: "middle" },
-    border: bd(),
-  },
-  precioVentaL: {
-    font: font({ bold: true, size: 10, color: { argb: C.verde } }),
-    fill: fill(C.verdeF),
-    alignment: { horizontal: "left", vertical: "middle" },
-    border: bd(),
-  },
-  margen: {
+  ratio: {
     font: font({ size: 10, color: { argb: C.grisT } }),
     fill: fill(C.blanco),
     alignment: { horizontal: "right", vertical: "middle" },
@@ -208,16 +196,45 @@ function styleDato(idx) { return idx % 2 === 0 ? S.dato : S.datoAlt }
 function autofitCols(ws, widths) {
   ws.columns = widths.map((w) => ({ width: Math.min(50, Math.max(12, w)) }))
 }
+// Materiales de una referencia: si tiene órdenes importadas de Odoo, esos son
+// la fuente real de MPD (igual que calcCostosEstandar); si no, se usan los
+// consumos manuales. Nunca se mezclan ambas fuentes para una misma referencia.
+function materialesDeReferencia(ref) {
+  if (ref.costosImportados) {
+    return (ref.costosImportados.materials || []).map((m) => ({
+      origen: "Odoo",
+      codigo: m.insumo,
+      nombre: m.insumo,
+      unidad: "",
+      costoUnit: m.costoMp || 0,
+      cantPlan: m.cantPlaneado || 0,
+      vrPlan: m.vrPlaneado || 0,
+      cantEjec: m.cantEjecutado ?? null,
+      vrEjec: m.vrEjecutado ?? null,
+    }))
+  }
+  return (ref.consumos || [])
+    .filter((c) => c.material)
+    .map((c) => ({
+      origen: "Manual",
+      codigo: c.material.id,
+      nombre: c.material.nombre,
+      unidad: c.material.unidad,
+      costoUnit: c.material.costo || 0,
+      cantPlan: c.cantidad || 0,
+      vrPlan: (c.material.costo || 0) * (c.cantidad || 0),
+      cantEjec: null,
+      vrEjec: null,
+    }))
+}
 function materialesUnicos(referencias) {
   const map = new Map()
   referencias.forEach((ref) => {
-    ;(ref.consumos || []).forEach((c) => {
-      const m = c.material
-      if (!m || map.has(m.id)) return
-      map.set(m.id, m)
+    materialesDeReferencia(ref).forEach((m) => {
+      if (!map.has(m.codigo)) map.set(m.codigo, m)
     })
   })
-  return [...map.values()].sort((a, b) => String(a.id).localeCompare(String(b.id)))
+  return [...map.values()].sort((a, b) => String(a.codigo).localeCompare(String(b.codigo)))
 }
 function landscapePage(ws) {
   ws.pageSetup = { orientation: "landscape", fitToPage: true, fitToWidth: 1, fitToHeight: 0 }
@@ -226,13 +243,13 @@ function landscapePage(ws) {
 // ---------------------------------------------------------------------------
 // Hoja: Resumen Costos
 // ---------------------------------------------------------------------------
-function buildResumenCostos(wb, referencias, calc, parametros, periodoLabel) {
+function buildResumenCostos(wb, referencias, calc, periodoLabel) {
   const ws = wb.addWorksheet("📊 Resumen Costos", { properties: { tabColor: { argb: C.azulO } } })
   const N = referencias.length
   const lastCol = N + 1
 
   mergeFill(ws, 1, 1, lastCol, S.hPri)
-  setCell(ws, 1, 1, "RESUMEN DE COSTOS Y PRECIOS — TODAS LAS REFERENCIAS", S.hPri)
+  setCell(ws, 1, 1, "RESUMEN DE COSTOS — TODAS LAS REFERENCIAS", S.hPri)
   ws.getRow(1).height = 28
 
   mergeFill(ws, 2, 1, lastCol, S.nota)
@@ -255,18 +272,26 @@ function buildResumenCostos(wb, referencias, calc, parametros, periodoLabel) {
   filaDatos(5, "A. Materiales directos (MPD)", (it) => it.mpd, S.num, S.dato, FMT.cop)
   filaDatos(6, "B. Mano de obra directa (MOD)", (it) => it.mod, S.num, S.dato, FMT.cop)
   filaDatos(7, "C. Costos indirectos fab. (CIF)", (it) => it.cif, S.num, S.dato, FMT.cop)
-  filaDatos(8, "COSTO DE PRODUCCIÓN (A+B+C)", (it) => it.costoProd, S.totalOscuro, S.totalOscuroL, FMT.cop)
-  filaDatos(9, "D. Gastos adm. y ventas (%)", () => parametros.pctGAV / 100, S.pctFila, S.pctFilaL, FMT.pct)
-  filaDatos(10, "COSTO TOTAL (A+B+C)×(1+D)", (it) => it.costoTotal, S.totalOscuro, S.totalOscuroL, FMT.cop)
-  filaDatos(11, "E. Margen de utilidad (%)", () => parametros.pctMargen / 100, S.pctFila, S.pctFilaL, FMT.pct)
-  filaDatos(12, "PRECIO DE VENTA SUGERIDO (COP)", (it) => it.precioVenta, S.precioVenta, S.precioVentaL, FMT.cop)
+  filaDatos(8, "COSTO ESTÁNDAR (A+B+C)", (it) => it.costoEstandar, S.totalOscuro, S.totalOscuroL, FMT.cop)
 
-  const margenStyle = { ...S.margen, fill: fill(C.azulXC) }
-  const margenStyleL = { ...S.margen, alignment: { horizontal: "left", vertical: "middle" }, fill: fill(C.azulXC) }
-  filaDatos(13, "Margen bruto unitario (COP)", (it) => it.margenBruto, margenStyle, margenStyleL, FMT.cop)
-  filaDatos(14, "% Materiales / costo producción", (it) => (it.costoProd > 0 ? it.mpd / it.costoProd : 0), margenStyle, margenStyleL, FMT.pct)
+  setCell(ws, 1, 9, "COSTO PRODUCCIÓN (ODOO)", S.totalOscuroL)
+  calc.forEach((it, i) => {
+    const v = it.costoOdoo > 0 ? it.costoOdoo : "—"
+    setCell(ws, 2 + i, 9, v, S.totalOscuro, typeof v === "number" ? FMT.cop : undefined)
+  })
 
-  for (let r = 5; r <= 14; r++) ws.getRow(r).height = 18
+  setCell(ws, 1, 10, "VARIACIÓN % (ODOO vs ESTÁNDAR)", S.pctFilaL)
+  calc.forEach((it, i) => {
+    const v = it.variacion
+    const style = v == null ? S.muted : v > 0 ? S.varAlerta : v < 0 ? S.varOk : S.pctFila
+    setCell(ws, 2 + i, 10, v == null ? "—" : v / 100, style, v == null ? undefined : FMT.pct)
+  })
+
+  const ratioStyle = { ...S.ratio, fill: fill(C.azulXC) }
+  const ratioStyleL = { ...S.ratio, alignment: { horizontal: "left", vertical: "middle" }, fill: fill(C.azulXC) }
+  filaDatos(11, "% Materiales / Costo Estándar", (it) => (it.costoEstandar > 0 ? it.mpd / it.costoEstandar : 0), ratioStyle, ratioStyleL, FMT.pct)
+
+  for (let r = 5; r <= 11; r++) ws.getRow(r).height = 18
 
   autofitCols(ws, [32, ...Array(N).fill(14)])
   ws.views = [{ state: "frozen", ySplit: 4 }]
@@ -279,30 +304,39 @@ function buildResumenCostos(wb, referencias, calc, parametros, periodoLabel) {
 // ---------------------------------------------------------------------------
 function buildMateriales(wb, referencias) {
   const ws = wb.addWorksheet("🔩 Materiales", { properties: { tabColor: { argb: C.azulM } } })
-  const materiales = materialesUnicos(referencias)
 
-  mergeFill(ws, 1, 1, 4, S.hPri)
-  setCell(ws, 1, 1, "INDUSTRIAS DONSOON — MAESTRO DE MATERIALES", S.hPri)
+  mergeFill(ws, 1, 1, 8, S.hPri)
+  setCell(ws, 1, 1, "INDUSTRIAS DONSOON — MATERIALES POR REFERENCIA", S.hPri)
   ws.getRow(1).height = 26
 
-  mergeFill(ws, 2, 1, 4, S.nota)
-  setCell(ws, 1, 2, "Liste todos los materiales usados en producción con su costo unitario.", S.nota)
+  mergeFill(ws, 2, 1, 8, S.nota)
+  setCell(ws, 1, 2, "Todos los materiales consumidos por cada referencia exportada (manual u Odoo importado).", S.nota)
   ws.getRow(2).height = 18
 
-  ;["Código", "Nombre del material", "Unidad", "Costo unit. (COP)"].forEach((h, i) =>
+  ;["Referencia", "Origen", "Código / Insumo", "Nombre", "Cant. Planeado", "Vr. Planeado (COP)", "Cant. Ejecutado", "Vr. Ejecutado (COP)"].forEach((h, i) =>
     setCell(ws, i + 1, 3, h, S.hSec)
   )
   ws.getRow(3).height = 22
 
-  materiales.forEach((m, i) => {
-    const r = 4 + i
-    setCell(ws, 1, r, m.id, S.codigo)
-    setCell(ws, 2, r, m.nombre, styleDato(i))
-    setCell(ws, 3, r, m.unidad, { ...styleDato(i), alignment: { horizontal: "center", vertical: "middle" } })
-    setCell(ws, 4, r, m.costo || 0, styleNum(i), FMT.cop)
+  let r = 4
+  let idx = 0
+  referencias.forEach((ref) => {
+    const lineas = materialesDeReferencia(ref)
+    lineas.forEach((m) => {
+      setCell(ws, 1, r, ref.id, S.codigo)
+      setCell(ws, 2, r, m.origen, styleDato(idx))
+      setCell(ws, 3, r, m.codigo, styleDato(idx))
+      setCell(ws, 4, r, m.nombre, styleDato(idx))
+      setCell(ws, 5, r, m.cantPlan, styleNum(idx), FMT.dec3)
+      setCell(ws, 6, r, m.vrPlan, styleNum(idx), FMT.cop)
+      setCell(ws, 7, r, m.cantEjec, styleNum(idx), m.cantEjec != null ? FMT.dec3 : undefined)
+      setCell(ws, 8, r, m.vrEjec, styleNum(idx), m.vrEjec != null ? FMT.cop : undefined)
+      r++
+      idx++
+    })
   })
 
-  autofitCols(ws, [12, 28, 12, 18])
+  autofitCols(ws, [12, 10, 22, 26, 14, 16, 14, 16])
   ws.views = [{ state: "frozen", ySplit: 3 }]
   landscapePage(ws)
   return ws
@@ -311,7 +345,7 @@ function buildMateriales(wb, referencias) {
 // ---------------------------------------------------------------------------
 // Hoja: Matriz Consumos
 // ---------------------------------------------------------------------------
-function buildMatrizConsumos(wb, referencias, calc, parametros) {
+function buildMatrizConsumos(wb, referencias, calc) {
   const ws = wb.addWorksheet("🔢 Matriz Consumos", { properties: { tabColor: { argb: "FF065F46" } } })
   const N = referencias.length
   const lastCol = N + 4
@@ -342,13 +376,13 @@ function buildMatrizConsumos(wb, referencias, calc, parametros) {
 
   let r = 6
   materiales.forEach((m, i) => {
-    setCell(ws, 1, r, m.id, S.codigo)
+    setCell(ws, 1, r, m.codigo, S.codigo)
     setCell(ws, 2, r, m.nombre, styleDato(i))
     setCell(ws, 3, r, m.unidad, { ...styleDato(i), alignment: { horizontal: "center", vertical: "middle" } })
-    setCell(ws, 4, r, m.costo || 0, styleNum(i), FMT.cop)
+    setCell(ws, 4, r, m.costoUnit || 0, styleNum(i), FMT.cop)
     calc.forEach((it, ci) => {
-      const cons = (it.ref.consumos || []).find((c) => c.material && c.material.id === m.id)
-      setCell(ws, 5 + ci, r, cons ? cons.cantidad || 0 : "", styleNum(i), cons ? FMT.dec3 : undefined)
+      const cons = materialesDeReferencia(it.ref).find((c) => c.codigo === m.codigo)
+      setCell(ws, 5 + ci, r, cons ? cons.cantPlan || 0 : "", styleNum(i), cons ? FMT.dec3 : undefined)
     })
     r++
   })
@@ -404,7 +438,7 @@ function buildMatrizConsumos(wb, referencias, calc, parametros) {
 // ---------------------------------------------------------------------------
 // Hoja: Parámetros
 // ---------------------------------------------------------------------------
-function buildParametros(wb, parametros) {
+function buildParametros(wb) {
   const ws = wb.addWorksheet("⚙️ Parámetros", { properties: { tabColor: { argb: "FF6B7280" } } })
 
   mergeFill(ws, 1, 1, 4, S.hPri)
@@ -438,25 +472,20 @@ function buildParametros(wb, parametros) {
   // DEPRECATED: tarifaMOD no se usa en ningún cálculo — fila eliminada del reporte
 
   for (let c = 1; c <= 4; c++) setCell(ws, c, 13, "", S.blank)
-  sep(14, "GASTOS GENERALES")
-  fila(15, "% GAV (gastos adm. y ventas)", parametros.pctGAV / 100, { ...styleNum(15), font: font({ bold: true, size: 10, color: { argb: "FF000000" } }) }, FMT.pct)
-  fila(16, "% Margen de utilidad", parametros.pctMargen / 100, { ...styleNum(16), font: font({ bold: true, size: 10, color: { argb: "FF000000" } }) }, FMT.pct)
+  sep(14, "CARGA FABRIL (CIF)")
+  fila(15, "La CIF se ingresa directamente en cada referencia como valor unitario en COP.", "", { ...S.muted, alignment: { horizontal: "left", vertical: "middle" } })
 
-  for (let c = 1; c <= 4; c++) setCell(ws, c, 17, "", S.blank)
-  sep(18, "CARGA FABRIL (CIF)")
-  fila(19, "La CIF se ingresa directamente en cada referencia como valor unitario en COP.", "", { ...S.muted, alignment: { horizontal: "left", vertical: "middle" } })
+  for (let c = 1; c <= 4; c++) setCell(ws, c, 16, "", S.blank)
+  sep(17, "LEYENDA DE COLORES")
 
-  for (let c = 1; c <= 4; c++) setCell(ws, c, 20, "", S.blank)
-  sep(21, "LEYENDA DE COLORES")
+  mergeFill(ws, 18, 1, 4, S.pctFilaL)
+  setCell(ws, 1, 18, "Celda azul (texto azul): ingresar dato", S.pctFilaL)
 
-  mergeFill(ws, 22, 1, 4, S.pctFilaL)
-  setCell(ws, 1, 22, "Celda azul (texto azul): ingresar dato", S.pctFilaL)
+  mergeFill(ws, 19, 1, 4, { fill: fill(C.gris), border: bd(), font: font({ size: 10, color: { argb: "FF000000" } }), alignment: { horizontal: "left", vertical: "middle" } })
+  setCell(ws, 1, 19, "Celda gris: calculada automáticamente", { fill: fill(C.gris), border: bd(), font: font({ size: 10, color: { argb: "FF000000" } }), alignment: { horizontal: "left", vertical: "middle" } })
 
-  mergeFill(ws, 23, 1, 4, { fill: fill(C.gris), border: bd(), font: font({ size: 10, color: { argb: "FF000000" } }), alignment: { horizontal: "left", vertical: "middle" } })
-  setCell(ws, 1, 23, "Celda gris: calculada automáticamente", { fill: fill(C.gris), border: bd(), font: font({ size: 10, color: { argb: "FF000000" } }), alignment: { horizontal: "left", vertical: "middle" } })
-
-  mergeFill(ws, 24, 1, 4, { ...S.varOk, alignment: { horizontal: "left", vertical: "middle" } })
-  setCell(ws, 1, 24, "Celda verde: vinculada desde otra hoja", { ...S.varOk, alignment: { horizontal: "left", vertical: "middle" } })
+  mergeFill(ws, 20, 1, 4, { ...S.varOk, alignment: { horizontal: "left", vertical: "middle" } })
+  setCell(ws, 1, 20, "Celda verde: variación favorable / vinculada desde otra hoja", { ...S.varOk, alignment: { horizontal: "left", vertical: "middle" } })
 
   autofitCols(ws, [30, 20, 12, 12])
   landscapePage(ws)
@@ -467,15 +496,15 @@ function buildParametros(wb, parametros) {
 // Función principal
 // ---------------------------------------------------------------------------
 export async function exportarExcel(referencias, parametros, periodoLabel) {
-  const calc = referencias.map((r) => ({ ref: r, ...calcCostos(r, parametros) }))
+  const calc = referencias.map((r) => ({ ref: r, ...calcCostosEstandar(r, parametros) }))
   const wb = new ExcelJS.Workbook()
   wb.creator = "Industrias Donsoon"
   wb.created = new Date()
 
-  buildResumenCostos(wb, referencias, calc, parametros, periodoLabel)
+  buildResumenCostos(wb, referencias, calc, periodoLabel)
   buildMateriales(wb, referencias)
-  buildMatrizConsumos(wb, referencias, calc, parametros)
-  buildParametros(wb, parametros)
+  buildMatrizConsumos(wb, referencias, calc)
+  buildParametros(wb)
 
   const buffer = await wb.xlsx.writeBuffer()
   const blob = new Blob([buffer], { type: "application/octet-stream" })
