@@ -77,6 +77,14 @@ export const referenciasApi = {
     }),
   variacion: (id, mes) =>
     request(`/referencias/${id}/variacion${mes ? `?mes=${encodeURIComponent(mes)}` : ""}`),
+  optimo: (id) => request(`/referencias/${id}/optimo`),
+  guardarOptimoLinea: (id, materialId, cantidad) =>
+    request(`/referencias/${id}/optimo/${materialId}`, {
+      method: "PUT",
+      body: JSON.stringify({ cantidad }),
+    }),
+  eliminarOptimoLinea: (id, materialId) =>
+    request(`/referencias/${id}/optimo/${materialId}`, { method: "DELETE" }),
 };
 
 export const parametrosApi = {

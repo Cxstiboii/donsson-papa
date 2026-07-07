@@ -8,28 +8,30 @@ datasource db {
 }
 
 model Material {
-  id        String    @id
-  nombre    String
-  unidad    String
-  costo     Float
-  proveedor String    @default("")
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  consumos  Consumo[]
+  id                String            @id
+  nombre            String
+  unidad            String
+  costo             Float
+  proveedor         String            @default("")
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  consumos          Consumo[]
+  optimalMateriales OptimalMaterial[]
 }
 
 model Referencia {
-  id            String    @id
-  nombre        String    @default("")
-  familia       String    @default("")
-  segMOD        Float     @default(60)
-  cifUnitario   Float     @default(0)
-  costoReal     Float     @default(0)
-  mes           String
-  fechaCreacion String
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  consumos      Consumo[]
+  id                String            @id
+  nombre            String            @default("")
+  familia           String            @default("")
+  segMOD            Float             @default(60)
+  cifUnitario       Float             @default(0)
+  costoReal         Float             @default(0)
+  mes               String
+  fechaCreacion     String
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  consumos          Consumo[]
+  optimalMateriales OptimalMaterial[]
 
   @@index([mes])
 }
@@ -39,6 +41,22 @@ model Consumo {
   referenciaId String
   materialId   String
   cantidad     Float
+  referencia   Referencia @relation(fields: [referenciaId], references: [id], onDelete: Cascade)
+  material     Material   @relation(fields: [materialId], references: [id])
+
+  @@unique([referenciaId, materialId])
+  @@index([materialId])
+}
+
+// Líneas de pesaje manual de materias primas en planta (feature "Costo Óptimo").
+// El precio nunca se copia aquí — siempre se resuelve en vivo desde Material.costo
+// para que una reimportación del CSV de Odoo actualice el costo óptimo automáticamente.
+model OptimalMaterial {
+  id           Int        @id @default(autoincrement())
+  referenciaId String
+  materialId   String
+  cantidad     Float
+  updatedAt    DateTime   @updatedAt
   referencia   Referencia @relation(fields: [referenciaId], references: [id], onDelete: Cascade)
   material     Material   @relation(fields: [materialId], references: [id])
 

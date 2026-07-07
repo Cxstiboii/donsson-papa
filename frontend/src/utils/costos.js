@@ -97,6 +97,15 @@ export function parseCOP(str) {
   return isNaN(n) ? 0 : n;
 }
 
+// Convierte una cantidad tecleada con coma decimal ("12,5") a número.
+// A diferencia de parseCOP, no asume separador de miles (las cantidades
+// pesadas no llegan a esos órdenes de magnitud).
+export function parseCantidad(str) {
+  const s = String(str).trim().replace(",", ".");
+  const n = parseFloat(s);
+  return n;
+}
+
 // Formatea número a string en formato colombiano para inputs de tipo text
 export function formatCOP(num) {
   const n = Number(num);

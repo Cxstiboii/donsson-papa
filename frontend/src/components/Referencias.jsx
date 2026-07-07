@@ -1,12 +1,31 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Plus, Pencil, Trash2, Search, FileBarChart, AlertCircle, X,
-  Download, ChevronDown, ChevronRight, Package, Wrench, BarChart2,
+  Download, ChevronDown, ChevronRight, Package, Wrench, BarChart2, Scale,
 } from "lucide-react";
 import { referenciasApi, materialesApi } from "../api.js";
 import { calcCostos, calcCostosEstandar, COP, mesLabel, fmt } from "../utils/costos.js";
 import { parseCOP, formatCOP } from "../utils/costos.js";
 import FiltroFecha, { dentroDeRango } from "../FiltroFecha.jsx";
+import CostoOptimo from "./CostoOptimo.jsx";
+
+function VarianzaOptimoBadge({ costoOptimo, costoEstandar }) {
+  if (costoOptimo == null) return <span style={{ color: "var(--color-muted)" }}>—</span>;
+  const varOptimo = costoEstandar > 0 ? ((costoOptimo - costoEstandar) / costoEstandar) * 100 : null;
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+      <span style={{ fontWeight: 600 }}>{COP(costoOptimo)}</span>
+      {varOptimo != null && (
+        <span
+          className={`badge ${varOptimo < 0 ? "badge-success" : varOptimo > 0 ? "badge-error" : "badge-info"}`}
+          style={{ fontSize: 10, padding: "1px 6px", alignSelf: "flex-start" }}
+        >
+          {varOptimo > 0 ? "+" : ""}{varOptimo.toFixed(1)}%
+        </span>
+      )}
+    </div>
+  );
+}
 
 function emptyForm() {
   return { id: "", familia: "", mes: "", hMOD: 0, hCIF: 0, costoReal: "", consumos: {} };
@@ -418,6 +437,7 @@ export default function Referencias({ referencias, materiales, parametros, reloa
   const [matSelectQty, setMatSelectQty] = useState("");
 
   const [modalVariacion, setModalVariacion] = useState(null);
+  const [costoOptimoRef, setCostoOptimoRef] = useState(null);
 
   const [drawerRef, setDrawerRef] = useState(null);
   const [drawerEditingInfo, setDrawerEditingInfo] = useState(false);
@@ -672,6 +692,7 @@ export default function Referencias({ referencias, materiales, parametros, reloa
               <th>CIF</th>
               <th>Costo Estándar</th>
               <th>Costo Producción (Odoo)</th>
+              <th>Costo Óptimo</th>
               <th>Variación %</th>
               <th>Acciones</th>
             </tr>
@@ -706,6 +727,7 @@ export default function Referencias({ referencias, materiales, parametros, reloa
                   <td>{COP(c.cif)}</td>
                   <td style={{ fontWeight: 600 }}>{COP(c.costoEstandar)}</td>
                   <td>{c.costoOdoo > 0 ? COP(c.costoOdoo) : "—"}</td>
+                  <td><VarianzaOptimoBadge costoOptimo={r.costoOptimo} costoEstandar={c.costoEstandar} /></td>
                   <td>
                     {variacion != null ? (
                       <span className={`badge ${variacionClass}`}>
@@ -719,6 +741,9 @@ export default function Referencias({ referencias, materiales, parametros, reloa
                     </button>
                     <button onClick={(e) => { e.stopPropagation(); setModalVariacion({ refId: r.id, refMes: r.mes }); }} className="btn btn-ghost">
                       <BarChart2 size={16} /> Variación
+                    </button>
+                    <button onClick={(e) => { e.stopPropagation(); setCostoOptimoRef(r.id); }} className="btn btn-ghost">
+                      <Scale size={16} /> Costo Óptimo
                     </button>
                     {r.costosImportados && (
                       <button onClick={(e) => { e.stopPropagation(); handleDeleteMes(r); }} className="btn btn-ghost-danger" title="Elimina solo las órdenes de este mes; la referencia y sus demás meses quedan intactos">
@@ -734,7 +759,7 @@ export default function Referencias({ referencias, materiales, parametros, reloa
             })}
             {filtradas.length === 0 && (
               <tr>
-                <td colSpan={10}>
+                <td colSpan={11}>
                   <div className="empty-state">
                     <div className="empty-state-icon"><FileBarChart size={28} /></div>
                     <div className="empty-state-title">No hay referencias que coincidan con el filtro</div>
@@ -870,6 +895,15 @@ export default function Referencias({ referencias, materiales, parametros, reloa
         />
       )}
 
+      {/* Modal Costo Óptimo (pesaje manual) */}
+      {costoOptimoRef && (
+        <CostoOptimo
+          refId={costoOptimoRef}
+          materiales={materiales}
+          onClose={() => { setCostoOptimoRef(null); reload(); }}
+        />
+      )}
+
       {/* Drawer detalle — Nivel 2 */}
       {drawerRef && (
         <>
@@ -897,9 +931,14 @@ export default function Referencias({ referencias, materiales, parametros, reloa
                   )}
                 </h2>
               </div>
-              <button onClick={() => setDrawerRef(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--color-muted)", padding: 4, marginTop: 2 }}>
-                <X size={22} />
-              </button>
+              <div style={{ display: "flex", alignItems: "center", gap: 4, flexShrink: 0 }}>
+                <button className="btn btn-ghost" onClick={() => setCostoOptimoRef(drawerRef.id)}>
+                  <Scale size={16} /> Costo Óptimo
+                </button>
+                <button onClick={() => setDrawerRef(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--color-muted)", padding: 4 }}>
+                  <X size={22} />
+                </button>
+              </div>
             </div>
 
             {/* Body */}
@@ -1150,6 +1189,7 @@ export default function Referencias({ referencias, materiales, parametros, reloa
                         { label: "CIF", value: COP(c.cif) },
                         { label: "Costo Estándar", value: COP(c.costoEstandar), highlight: true },
                         { label: "Costo Producción (Odoo)", value: c.costoOdoo > 0 ? COP(c.costoOdoo) : "—" },
+                        { label: "Costo Óptimo", value: drawerRef.costoOptimo != null ? COP(drawerRef.costoOptimo) : "—" },
                         {
                           label: "Variación %",
                           value: c.variacion != null
