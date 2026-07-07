@@ -78,6 +78,44 @@ function serializeOptimalLine(linea) {
   };
 }
 
+// Materiales que "pertenecen" a una referencia para el modal de Costo Óptimo:
+// mismo patrón dual-fuente que usa el export a Excel (materialesDeReferencia
+// en exportExcel.js) — CostMaterial (matcheado por nombre de insumo, texto
+// libre en Odoo) para referencias con órdenes importadas, o Consumo (con
+// materialId directo) para referencias manuales — más cualquier material que
+// ya tenga una línea de OptimalMaterial guardada, aunque ya no esté en la
+// receta vigente (para que el pesaje previo nunca desaparezca).
+async function materialesDeReferenciaOptimo(ref, ordersRef) {
+  const materialesMap = new Map();
+
+  if (ordersRef.length) {
+    const nombresInsumo = new Set();
+    for (const o of ordersRef) {
+      for (const m of o.materials) {
+        if (m.insumo) nombresInsumo.add(m.insumo.trim().toLowerCase());
+      }
+    }
+    if (nombresInsumo.size) {
+      const todos = await prisma.material.findMany();
+      for (const mat of todos) {
+        if (nombresInsumo.has(mat.nombre.trim().toLowerCase())) {
+          materialesMap.set(mat.id, mat);
+        }
+      }
+    }
+  } else {
+    for (const c of ref.consumos) {
+      if (c.material) materialesMap.set(c.material.id, c.material);
+    }
+  }
+
+  for (const l of ref.optimalMateriales) {
+    materialesMap.set(l.materialId, l.material);
+  }
+
+  return [...materialesMap.values()].sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
+}
+
 // Expande una referencia en una fila por cada mes con órdenes importadas
 // (derivado de CostOrder.fechaFinal, más reciente primero), o en una única
 // fila usando Referencia.mes si no tiene órdenes importadas (manual).
@@ -445,8 +483,19 @@ router.get("/:id/optimo", async (req, res) => {
       calcCostoOptimo(ref, ordersRef, ref.optimalMateriales);
     const { costoEstandar, costoProduccion } = getCostosEstandarReferencia(ref, ordersRef);
 
+    const lineasMap = new Map(ref.optimalMateriales.map((l) => [l.materialId, l.cantidad]));
+    const materialesRef = await materialesDeReferenciaOptimo(ref, ordersRef);
+    const materiales = materialesRef.map((mat) => ({
+      id: mat.id,
+      nombre: mat.nombre,
+      unidad: mat.unidad,
+      costo: mat.costo,
+      cantidad: lineasMap.has(mat.id) ? lineasMap.get(mat.id) : null,
+    }));
+
     res.json({
       refId: ref.id,
+      materiales,
       lineas,
       mpdOptimo,
       modEstandar,

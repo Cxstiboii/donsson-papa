@@ -31,27 +31,15 @@ function emptyForm() {
   return { id: "", familia: "", mes: "", hMOD: 0, hCIF: 0, costoReal: "", consumos: {} };
 }
 
-// Materiales que "pertenecen" a una referencia para priorizar su orden en el
-// modal de Costo Óptimo: los de su consumo manual, o los que calzan por
-// nombre con los insumos de sus órdenes importadas de Odoo (mismo criterio
-// de coincidencia que usa el backend al importar el CSV de costos).
-function materialesPrioritariosDe(refId, referencias, materiales) {
-  if (!refId) return new Set();
-  const ids = new Set();
-  const nombres = new Set();
-  for (const r of referencias) {
-    if (r.id !== refId) continue;
-    for (const c of r.consumos || []) ids.add(c.materialId);
-    for (const m of r.costosImportados?.materials || []) {
-      if (m.insumo) nombres.add(m.insumo.trim().toLowerCase());
-    }
-  }
-  if (nombres.size) {
-    for (const m of materiales) {
-      if (nombres.has(m.nombre.trim().toLowerCase())) ids.add(m.id);
-    }
-  }
-  return ids;
+// Familias base del selector. Si la referencia ya trae un valor distinto
+// (p. ej. "SIN_CLASIFICAR" asignado por el import), se agrega como opción
+// extra para que el <select> nunca quede con un valor sin opción que lo
+// represente — eso es lo que bloqueaba el guardado (el navegador considera
+// el campo "required" inválido y no envía el formulario).
+const FAMILIAS_BASE = ["AAA", "A", "B", "C"];
+function familiaOpciones(valorActual) {
+  if (valorActual && !FAMILIAS_BASE.includes(valorActual)) return [valorActual, ...FAMILIAS_BASE];
+  return FAMILIAS_BASE;
 }
 
 
@@ -515,11 +503,6 @@ export default function Referencias({ referencias, materiales, parametros, reloa
     return materiales.filter((m) => !ids.has(m.id));
   }, [materiales, form.consumos]);
 
-  const materialesPrioritariosOptimo = useMemo(
-    () => materialesPrioritariosDe(costoOptimoRef, referencias, materiales),
-    [costoOptimoRef, referencias, materiales],
-  );
-
   async function handleExport() {
     const { exportarExcel } = await import("../exportExcel.js");
     exportarExcel(filtradas, parametros, filtroLabel).catch((err) => {
@@ -817,10 +800,9 @@ export default function Referencias({ referencias, materiales, parametros, reloa
                   <label className="field-label">Familia</label>
                   <select className="input" value={form.familia} onChange={(e) => setForm({ ...form, familia: e.target.value })} required>
                     <option value="">Seleccionar familia…</option>
-                    <option value="AAA">AAA</option>
-                    <option value="A">A</option>
-                    <option value="B">B</option>
-                    <option value="C">C</option>
+                    {familiaOpciones(form.familia).map((f) => (
+                      <option key={f} value={f}>{f}</option>
+                    ))}
                   </select>
                 </div>
               </div>
@@ -844,11 +826,11 @@ export default function Referencias({ referencias, materiales, parametros, reloa
               <div className="field-grid-2">
                 <div>
                   <label className="field-label">MOD manual (COP)</label>
-                  <input type="number" step="1" min="0" className="input" placeholder="$ 0" value={form.hMOD} onChange={(e) => setForm({ ...form, hMOD: e.target.value })} required />
+                  <input type="number" step="any" min="0" className="input" placeholder="$ 0" value={form.hMOD} onChange={(e) => setForm({ ...form, hMOD: e.target.value })} required />
                 </div>
                 <div>
                   <label className="field-label">CIF manual (COP)</label>
-                  <input type="number" step="1" min="0" className="input" placeholder="$ 0" value={form.hCIF} onChange={(e) => setForm({ ...form, hCIF: e.target.value })} required />
+                  <input type="number" step="any" min="0" className="input" placeholder="$ 0" value={form.hCIF} onChange={(e) => setForm({ ...form, hCIF: e.target.value })} required />
                 </div>
               </div>
 
@@ -927,8 +909,6 @@ export default function Referencias({ referencias, materiales, parametros, reloa
       {costoOptimoRef && (
         <CostoOptimo
           refId={costoOptimoRef}
-          materiales={materiales}
-          materialesPrioritarios={materialesPrioritariosOptimo}
           onClose={() => { setCostoOptimoRef(null); reload(); }}
         />
       )}
@@ -996,10 +976,9 @@ export default function Referencias({ referencias, materiales, parametros, reloa
                       <div>
                         <label className="field-label">Familia</label>
                         <select className="select" value={drawerInfoForm.familia} onChange={(e) => setDrawerInfoForm((f) => ({ ...f, familia: e.target.value }))}>
-                          <option value="AAA">AAA</option>
-                          <option value="A">A</option>
-                          <option value="B">B</option>
-                          <option value="C">C</option>
+                          {familiaOpciones(drawerInfoForm.familia).map((f) => (
+                            <option key={f} value={f}>{f}</option>
+                          ))}
                         </select>
                       </div>
                       <div>
@@ -1017,7 +996,7 @@ export default function Referencias({ referencias, materiales, parametros, reloa
                     <div className="field-grid-2">
                       <div>
                         <label className="field-label">MOD manual (COP)</label>
-                        <input type="number" step="1" min="0" className="input" value={drawerInfoForm.segMOD} onChange={(e) => setDrawerInfoForm((f) => ({ ...f, segMOD: e.target.value }))} />
+                        <input type="number" step="any" min="0" className="input" value={drawerInfoForm.segMOD} onChange={(e) => setDrawerInfoForm((f) => ({ ...f, segMOD: e.target.value }))} />
                       </div>
                       <div>
                         <label className="field-label">CIF manual (COP)</label>

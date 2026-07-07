@@ -157,7 +157,7 @@ function FilaMaterial({ fila, focused, guardando, eliminando, flash, onGuardar, 
   );
 }
 
-export default function CostoOptimo({ refId, materiales, materialesPrioritarios, onClose }) {
+export default function CostoOptimo({ refId, onClose }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState("");
@@ -205,23 +205,21 @@ export default function CostoOptimo({ refId, materiales, materialesPrioritarios,
   }, []);
 
   const filas = useMemo(() => {
-    const lineasMap = new Map((data?.lineas || []).map((l) => [l.materialId, l]));
-    const prioridad = materialesPrioritarios || new Set();
-    const list = materiales.map((m) => ({
+    const list = (data?.materiales || []).map((m) => ({
       id: m.id,
       nombre: m.nombre,
       unidad: m.unidad,
       costo: m.costo,
-      linea: lineasMap.get(m.id) || null,
+      linea: m.cantidad != null ? { cantidad: m.cantidad } : null,
     }));
     list.sort((a, b) => {
-      const aPri = !!a.linea || prioridad.has(a.id);
-      const bPri = !!b.linea || prioridad.has(b.id);
+      const aPri = !!a.linea;
+      const bPri = !!b.linea;
       if (aPri !== bPri) return aPri ? -1 : 1;
       return a.nombre.localeCompare(b.nombre, "es");
     });
     return list;
-  }, [materiales, data, materialesPrioritarios]);
+  }, [data]);
 
   const filasFiltradas = useMemo(() => {
     const q = busqueda.trim().toLowerCase();
@@ -305,7 +303,7 @@ export default function CostoOptimo({ refId, materiales, materialesPrioritarios,
               </div>
 
               <div className="optimo-count">
-                {data.lineas.length} de {materiales.length} materiales pesados
+                {data.lineas.length} de {data.materiales.length} materiales pesados
               </div>
 
               <div className="optimo-row-list">
