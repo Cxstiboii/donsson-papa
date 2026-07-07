@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { Search, Plus, Pencil, Trash2, X, Check, Scale, AlertCircle } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { Search, Trash2, X, Check, Scale, AlertCircle, CheckCircle2 } from "lucide-react";
 import { referenciasApi } from "../api.js";
-import { COP, fmt, parseCantidad } from "../utils/costos.js";
+import { COP, parseCantidad } from "../utils/costos.js";
 
 function VarBadge({ value }) {
   if (value == null || isNaN(value)) return <span style={{ color: "var(--color-muted)" }}>—</span>;
@@ -13,13 +14,27 @@ function VarBadge({ value }) {
   );
 }
 
-function ResumenOptimo({ data }) {
+function ResumenOptimo({ data, compact }) {
   const varEstandar = data.costoEstandar > 0
     ? ((data.costoOptimo - data.costoEstandar) / data.costoEstandar) * 100
     : null;
   const varProduccion = data.costoProduccion > 0
     ? ((data.costoOptimo - data.costoProduccion) / data.costoProduccion) * 100
     : null;
+
+  if (compact) {
+    return (
+      <div className="optimo-summary optimo-summary-compact">
+        <span className="optimo-summary-label" style={{ fontWeight: 700, color: "var(--color-primary)" }}>
+          COSTO ÓPTIMO
+        </span>
+        <span style={{ fontSize: 16, fontWeight: 800, color: "var(--color-primary)", marginLeft: "auto" }}>
+          {COP(data.costoOptimo)}
+        </span>
+        <VarBadge value={varEstandar} />
+      </div>
+    );
+  }
 
   return (
     <div className="optimo-summary">
@@ -59,194 +74,98 @@ function ResumenOptimo({ data }) {
   );
 }
 
-function BuscarMaterial({ materiales, lineasIds, onSeleccionar }) {
-  const [busqueda, setBusqueda] = useState("");
+// Fila de material precargada: muestra info de solo lectura (nombre, código,
+// unidad, precio) más un input de cantidad que guarda inline. Si ya existe
+// una línea guardada, se muestra marcada y editable; si se vacía, se elimina.
+function FilaMaterial({ fila, focused, guardando, eliminando, flash, onGuardar, onEliminar, onFocus, onBlur }) {
+  const guardado = !!fila.linea;
+  const [cantidad, setCantidad] = useState(fila.linea ? String(fila.linea.cantidad) : "");
+  const inputRef = useRef(null);
+  const suppressBlurSave = useRef(false);
 
-  const resultados = useMemo(() => {
-    const q = busqueda.trim().toLowerCase();
-    if (!q) return [];
-    return materiales
-      .filter((m) => !lineasIds.has(m.id))
-      .filter((m) => m.id.toLowerCase().includes(q) || m.nombre.toLowerCase().includes(q))
-      .slice(0, 15);
-  }, [materiales, busqueda, lineasIds]);
+  useEffect(() => {
+    if (!focused) setCantidad(fila.linea ? String(fila.linea.cantidad) : "");
+  }, [fila.linea, focused]);
 
-  return (
-    <div>
-      <label className="field-label" style={{ marginTop: 0 }}>Buscar materia prima</label>
-      <div style={{ position: "relative" }}>
-        <Search size={18} style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "var(--color-muted)" }} />
-        <input
-          className="input"
-          style={{ height: 48, paddingLeft: 40, fontSize: 16 }}
-          placeholder="Código o nombre…"
-          value={busqueda}
-          onChange={(e) => setBusqueda(e.target.value)}
-        />
-      </div>
-      {resultados.length > 0 && (
-        <div className="optimo-search-results">
-          {resultados.map((m) => (
-            <button
-              key={m.id}
-              type="button"
-              className="optimo-mat-btn"
-              onClick={() => { onSeleccionar(m); setBusqueda(""); }}
-            >
-              <span style={{ fontWeight: 700, fontSize: 15 }}>{m.nombre}</span>
-              <span style={{ fontSize: 12, color: "var(--color-muted)" }}>{m.id} · {m.unidad} · {COP(m.costo)}</span>
-            </button>
-          ))}
-        </div>
-      )}
-      {busqueda.trim() !== "" && resultados.length === 0 && (
-        <div style={{ fontSize: 13, color: "var(--color-muted)", padding: "10px 4px" }}>Sin resultados</div>
-      )}
-    </div>
-  );
-}
-
-function EntradaCantidad({ material, guardando, onConfirmar, onCancelar }) {
-  const [cantidad, setCantidad] = useState("");
   const num = parseCantidad(cantidad);
-  const valido = cantidad.trim() !== "" && !isNaN(num) && num > 0;
+  const vacio = cantidad.trim() === "";
+  const valido = !vacio && !isNaN(num) && num > 0;
+  const invalido = !vacio && !valido;
+  const disabled = guardando || eliminando;
+
+  function guardar() {
+    if (disabled || !valido) return;
+    suppressBlurSave.current = true;
+    onGuardar(fila.id, num);
+    inputRef.current?.blur();
+  }
 
   return (
-    <div style={{ border: "1px solid var(--color-border)", borderRadius: "var(--radius-card)", padding: 14, background: "#F0F7FF" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10, gap: 8 }}>
-        <div>
-          <div style={{ fontWeight: 700, fontSize: 15 }}>{material.nombre}</div>
-          <div style={{ fontSize: 12, color: "var(--color-muted)" }}>
-            {material.id} · Precio actual: {COP(material.costo)} / {material.unidad}
-          </div>
+    <div className={`optimo-row${guardado ? " is-saved" : ""}`}>
+      <div className="optimo-row-info">
+        <div className="optimo-row-name">
+          {fila.nombre}
+          {guardado && <CheckCircle2 size={14} className="optimo-row-check" />}
         </div>
-        <button
-          type="button"
-          onClick={onCancelar}
-          style={{ background: "none", border: "none", cursor: "pointer", color: "var(--color-muted)", padding: 4, flexShrink: 0 }}
-        >
-          <X size={20} />
-        </button>
+        <div className="optimo-row-meta">{fila.id} · {fila.unidad} · {COP(fila.costo)}</div>
+        {flash && <div className="optimo-saved-flash">Guardado ✓</div>}
+        {invalido && <div className="optimo-row-error">Cantidad inválida</div>}
       </div>
-      <label className="field-label" style={{ marginTop: 0 }}>Cantidad pesada ({material.unidad})</label>
-      <div style={{ display: "flex", gap: 8 }}>
+      <div className="optimo-row-controls">
         <input
+          ref={inputRef}
           type="text"
           inputMode="decimal"
-          className="input"
-          style={{ height: 48, fontSize: 18 }}
-          placeholder={`0 ${material.unidad}`}
+          className="input optimo-row-input"
+          placeholder={`0 ${fila.unidad}`}
           value={cantidad}
-          autoFocus
+          disabled={disabled}
           onChange={(e) => setCantidad(e.target.value)}
-          onKeyDown={(e) => { if (e.key === "Enter" && valido && !guardando) onConfirmar(num); }}
+          onFocus={onFocus}
+          onBlur={() => {
+            onBlur();
+            if (suppressBlurSave.current) {
+              suppressBlurSave.current = false;
+              return;
+            }
+            if (valido) onGuardar(fila.id, num);
+          }}
+          onKeyDown={(e) => { if (e.key === "Enter") guardar(); }}
         />
         <button
           type="button"
-          className="btn btn-primary"
-          style={{ height: 48, minWidth: 116, fontSize: 15, flexShrink: 0 }}
-          disabled={!valido || guardando}
-          onClick={() => onConfirmar(num)}
+          className="btn btn-primary optimo-row-btn"
+          disabled={disabled || !valido}
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={guardar}
+          title="Guardar"
         >
-          {guardando ? "Guardando…" : (<><Plus size={18} /> Agregar</>)}
+          {guardando ? "…" : <Check size={18} />}
+        </button>
+        <button
+          type="button"
+          className="optimo-row-del"
+          disabled={!guardado || disabled}
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={() => onEliminar(fila)}
+          title="Quitar"
+        >
+          {eliminando ? "…" : <Trash2 size={16} />}
         </button>
       </div>
-      {cantidad.trim() !== "" && !valido && (
-        <div style={{ fontSize: 12, color: "var(--color-error-text)", marginTop: 6 }}>
-          Ingresa una cantidad válida mayor que 0
-        </div>
-      )}
     </div>
   );
 }
 
-function LineaEditando({ linea, guardando, onGuardar, onCancelar }) {
-  const [cantidad, setCantidad] = useState(String(linea.cantidad));
-  const num = parseCantidad(cantidad);
-  const valido = cantidad.trim() !== "" && !isNaN(num) && num > 0;
-
-  return (
-    <div className="optimo-line">
-      <div className="optimo-line-body">
-        <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 6 }}>{linea.nombre}</div>
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <input
-            type="text"
-            inputMode="decimal"
-            className="input"
-            style={{ height: 44, fontSize: 16 }}
-            value={cantidad}
-            autoFocus
-            onChange={(e) => setCantidad(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && valido && !guardando) onGuardar(num);
-              if (e.key === "Escape") onCancelar();
-            }}
-          />
-          <span style={{ fontSize: 13, color: "var(--color-muted)", whiteSpace: "nowrap" }}>{linea.unidad}</span>
-        </div>
-      </div>
-      <button
-        type="button"
-        className="btn btn-primary"
-        style={{ height: 44, minWidth: 44, padding: 0, flexShrink: 0 }}
-        disabled={!valido || guardando}
-        onClick={() => onGuardar(num)}
-      >
-        <Check size={18} />
-      </button>
-      <button
-        type="button"
-        className="btn btn-secondary"
-        style={{ height: 44, minWidth: 44, padding: 0, flexShrink: 0 }}
-        onClick={onCancelar}
-      >
-        <X size={18} />
-      </button>
-    </div>
-  );
-}
-
-function LineaOptima({ linea, flash, disabled, onEditar, onEliminar }) {
-  return (
-    <div className="optimo-line">
-      <div className="optimo-line-body">
-        <div style={{ fontWeight: 700, fontSize: 14 }}>{linea.nombre}</div>
-        <div style={{ fontSize: 12, color: "var(--color-muted)" }}>
-          {fmt(linea.cantidad, 3)} {linea.unidad} × {COP(linea.costo)} ={" "}
-          <b style={{ color: "var(--color-text)" }}>{COP(linea.subtotal)}</b>
-        </div>
-        {flash && <div className="optimo-saved-flash">Guardado ✓</div>}
-      </div>
-      <button
-        type="button"
-        disabled={disabled}
-        onClick={() => onEditar(linea)}
-        style={{ background: "none", border: "none", cursor: "pointer", color: "var(--color-primary)", padding: 8, minWidth: 44, minHeight: 44, flexShrink: 0 }}
-      >
-        <Pencil size={18} />
-      </button>
-      <button
-        type="button"
-        disabled={disabled}
-        onClick={() => onEliminar(linea)}
-        style={{ background: "none", border: "none", cursor: "pointer", color: "var(--color-error)", padding: 8, minWidth: 44, minHeight: 44, flexShrink: 0 }}
-      >
-        <Trash2 size={18} />
-      </button>
-    </div>
-  );
-}
-
-export default function CostoOptimo({ refId, materiales, onClose }) {
+export default function CostoOptimo({ refId, materiales, materialesPrioritarios, onClose }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState("");
-  const [matSeleccionado, setMatSeleccionado] = useState(null);
-  const [guardando, setGuardando] = useState(false);
+  const [busqueda, setBusqueda] = useState("");
+  const [guardandoIds, setGuardandoIds] = useState(() => new Set());
+  const [eliminandoIds, setEliminandoIds] = useState(() => new Set());
   const [flashId, setFlashId] = useState(null);
-  const [editId, setEditId] = useState(null);
-  const [eliminandoId, setEliminandoId] = useState(null);
+  const [focusedId, setFocusedId] = useState(null);
 
   const cargar = useCallback(async () => {
     try {
@@ -261,79 +180,102 @@ export default function CostoOptimo({ refId, materiales, onClose }) {
 
   useEffect(() => { cargar(); }, [cargar]);
 
-  const lineasIds = useMemo(() => new Set((data?.lineas || []).map((l) => l.materialId)), [data]);
+  // Overlay real: bloquea el scroll del body mientras el modal está abierto.
+  useEffect(() => {
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = previous; };
+  }, []);
+
+  // Detecta el teclado móvil realmente abierto (no solo el foco) vía
+  // visualViewport: este evento llega ya terminado el gesto de toque, así
+  // que colapsar el resumen nunca puede desplazar el layout bajo el dedo del
+  // usuario a mitad de un tap (lo que antes hacía que un tap sobre el input
+  // terminara cerrando el modal completo).
+  const [tecladoAbierto, setTecladoAbierto] = useState(false);
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const alturaCompleta = window.innerHeight;
+    function onResize() {
+      setTecladoAbierto(vv.height < alturaCompleta - 120);
+    }
+    vv.addEventListener("resize", onResize);
+    return () => vv.removeEventListener("resize", onResize);
+  }, []);
+
+  const filas = useMemo(() => {
+    const lineasMap = new Map((data?.lineas || []).map((l) => [l.materialId, l]));
+    const prioridad = materialesPrioritarios || new Set();
+    const list = materiales.map((m) => ({
+      id: m.id,
+      nombre: m.nombre,
+      unidad: m.unidad,
+      costo: m.costo,
+      linea: lineasMap.get(m.id) || null,
+    }));
+    list.sort((a, b) => {
+      const aPri = !!a.linea || prioridad.has(a.id);
+      const bPri = !!b.linea || prioridad.has(b.id);
+      if (aPri !== bPri) return aPri ? -1 : 1;
+      return a.nombre.localeCompare(b.nombre, "es");
+    });
+    return list;
+  }, [materiales, data, materialesPrioritarios]);
+
+  const filasFiltradas = useMemo(() => {
+    const q = busqueda.trim().toLowerCase();
+    if (!q) return filas;
+    return filas.filter((f) => f.id.toLowerCase().includes(q) || f.nombre.toLowerCase().includes(q));
+  }, [filas, busqueda]);
 
   function flashGuardado(materialId) {
     setFlashId(materialId);
     setTimeout(() => setFlashId((cur) => (cur === materialId ? null : cur)), 1500);
   }
 
-  async function confirmarAgregar(cantidad) {
-    if (!matSeleccionado || guardando) return;
-    setGuardando(true);
-    try {
-      const idGuardado = matSeleccionado.id;
-      await referenciasApi.guardarOptimoLinea(refId, idGuardado, cantidad);
-      setMatSeleccionado(null);
-      await cargar();
-      flashGuardado(idGuardado);
-    } catch (e) {
-      alert(e.message);
-    } finally {
-      setGuardando(false);
-    }
-  }
-
-  async function guardarEdicion(materialId, cantidad) {
-    if (guardando) return;
-    setGuardando(true);
+  async function guardarLinea(materialId, cantidad) {
+    if (guardandoIds.has(materialId)) return;
+    setGuardandoIds((s) => new Set(s).add(materialId));
     try {
       await referenciasApi.guardarOptimoLinea(refId, materialId, cantidad);
-      setEditId(null);
       await cargar();
       flashGuardado(materialId);
     } catch (e) {
       alert(e.message);
     } finally {
-      setGuardando(false);
+      setGuardandoIds((s) => { const n = new Set(s); n.delete(materialId); return n; });
     }
   }
 
-  async function eliminarLinea(linea) {
-    if (eliminandoId) return;
-    if (!window.confirm(`¿Quitar "${linea.nombre}" del pesaje de esta referencia?`)) return;
-    setEliminandoId(linea.materialId);
+  async function eliminarLinea(fila) {
+    if (eliminandoIds.has(fila.id)) return;
+    if (!window.confirm(`¿Quitar "${fila.nombre}" del pesaje de esta referencia?`)) return;
+    setEliminandoIds((s) => new Set(s).add(fila.id));
     try {
-      await referenciasApi.eliminarOptimoLinea(refId, linea.materialId);
+      await referenciasApi.eliminarOptimoLinea(refId, fila.id);
       await cargar();
     } catch (e) {
       alert(e.message);
     } finally {
-      setEliminandoId(null);
+      setEliminandoIds((s) => { const n = new Set(s); n.delete(fila.id); return n; });
     }
   }
 
-  return (
-    <div className="overlay" onClick={onClose}>
-      <div
-        className="modal"
-        style={{ width: 480, maxWidth: "96vw", maxHeight: "92vh", padding: 0, display: "flex", flexDirection: "column" }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div style={{ padding: "18px 18px 0" }}>
-          <h3 className="modal-title" style={{ marginBottom: 14 }}>
+  const modal = (
+    <div className="optimo-overlay" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="optimo-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="optimo-modal-header">
+          <h3 className="modal-title" style={{ marginBottom: 0 }}>
             <Scale size={20} />
             Costo Óptimo — {refId}
-            <button
-              onClick={onClose}
-              style={{ marginLeft: "auto", background: "none", border: "none", cursor: "pointer", color: "var(--color-muted)", padding: 4 }}
-            >
-              <X size={22} />
-            </button>
           </h3>
+          <button onClick={onClose} className="optimo-close-btn">
+            <X size={22} />
+          </button>
         </div>
 
-        <div style={{ flex: 1, overflowY: "auto", padding: "0 18px 18px" }}>
+        <div className="optimo-modal-body">
           {loading && <div className="spinner-wrap"><div className="spinner" /></div>}
 
           {errorMsg && (
@@ -344,51 +286,48 @@ export default function CostoOptimo({ refId, materiales, onClose }) {
 
           {data && !loading && (
             <div className="optimo-shell">
-              <ResumenOptimo data={data} />
+              <ResumenOptimo data={data} compact={!!focusedId && tecladoAbierto} />
 
-              {matSeleccionado ? (
-                <EntradaCantidad
-                  material={matSeleccionado}
-                  guardando={guardando}
-                  onConfirmar={confirmarAgregar}
-                  onCancelar={() => setMatSeleccionado(null)}
+              <div className="optimo-search-wrap">
+                <Search size={18} className="optimo-search-icon" />
+                <input
+                  className="input"
+                  style={{ height: 48, paddingLeft: 40, paddingRight: 40, fontSize: 16 }}
+                  placeholder="Filtrar por código o nombre…"
+                  value={busqueda}
+                  onChange={(e) => setBusqueda(e.target.value)}
                 />
-              ) : (
-                <BuscarMaterial materiales={materiales} lineasIds={lineasIds} onSeleccionar={setMatSeleccionado} />
-              )}
+                {busqueda !== "" && (
+                  <button type="button" className="optimo-search-clear" onClick={() => setBusqueda("")}>
+                    <X size={16} />
+                  </button>
+                )}
+              </div>
 
-              <div>
-                <div className="field-label" style={{ marginTop: 0 }}>
-                  Materiales pesados ({data.lineas.length})
-                </div>
-                {data.lineas.length === 0 ? (
-                  <div style={{ fontSize: 13, color: "var(--color-muted)", padding: "10px 0" }}>
-                    Aún no se ha pesado ningún material.
-                  </div>
-                ) : (
-                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                    {data.lineas.map((l) => (
-                      editId === l.materialId ? (
-                        <LineaEditando
-                          key={l.materialId}
-                          linea={l}
-                          guardando={guardando}
-                          onGuardar={(num) => guardarEdicion(l.materialId, num)}
-                          onCancelar={() => setEditId(null)}
-                        />
-                      ) : (
-                        <LineaOptima
-                          key={l.materialId}
-                          linea={l}
-                          flash={flashId === l.materialId}
-                          disabled={eliminandoId === l.materialId}
-                          onEditar={() => setEditId(l.materialId)}
-                          onEliminar={eliminarLinea}
-                        />
-                      )
-                    ))}
+              <div className="optimo-count">
+                {data.lineas.length} de {materiales.length} materiales pesados
+              </div>
+
+              <div className="optimo-row-list">
+                {filasFiltradas.length === 0 && (
+                  <div style={{ fontSize: 13, color: "var(--color-muted)", padding: "16px 4px", textAlign: "center" }}>
+                    Sin resultados
                   </div>
                 )}
+                {filasFiltradas.map((f) => (
+                  <FilaMaterial
+                    key={f.id}
+                    fila={f}
+                    focused={focusedId === f.id}
+                    guardando={guardandoIds.has(f.id)}
+                    eliminando={eliminandoIds.has(f.id)}
+                    flash={flashId === f.id}
+                    onGuardar={guardarLinea}
+                    onEliminar={eliminarLinea}
+                    onFocus={() => setFocusedId(f.id)}
+                    onBlur={() => setFocusedId((cur) => (cur === f.id ? null : cur))}
+                  />
+                ))}
               </div>
             </div>
           )}
@@ -396,4 +335,6 @@ export default function CostoOptimo({ refId, materiales, onClose }) {
       </div>
     </div>
   );
+
+  return createPortal(modal, document.body);
 }

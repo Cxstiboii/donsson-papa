@@ -31,6 +31,29 @@ function emptyForm() {
   return { id: "", familia: "", mes: "", hMOD: 0, hCIF: 0, costoReal: "", consumos: {} };
 }
 
+// Materiales que "pertenecen" a una referencia para priorizar su orden en el
+// modal de Costo Óptimo: los de su consumo manual, o los que calzan por
+// nombre con los insumos de sus órdenes importadas de Odoo (mismo criterio
+// de coincidencia que usa el backend al importar el CSV de costos).
+function materialesPrioritariosDe(refId, referencias, materiales) {
+  if (!refId) return new Set();
+  const ids = new Set();
+  const nombres = new Set();
+  for (const r of referencias) {
+    if (r.id !== refId) continue;
+    for (const c of r.consumos || []) ids.add(c.materialId);
+    for (const m of r.costosImportados?.materials || []) {
+      if (m.insumo) nombres.add(m.insumo.trim().toLowerCase());
+    }
+  }
+  if (nombres.size) {
+    for (const m of materiales) {
+      if (nombres.has(m.nombre.trim().toLowerCase())) ids.add(m.id);
+    }
+  }
+  return ids;
+}
+
 
 const TH = {
   padding: "8px 10px", textAlign: "left", fontWeight: 600,
@@ -492,6 +515,11 @@ export default function Referencias({ referencias, materiales, parametros, reloa
     return materiales.filter((m) => !ids.has(m.id));
   }, [materiales, form.consumos]);
 
+  const materialesPrioritariosOptimo = useMemo(
+    () => materialesPrioritariosDe(costoOptimoRef, referencias, materiales),
+    [costoOptimoRef, referencias, materiales],
+  );
+
   async function handleExport() {
     const { exportarExcel } = await import("../exportExcel.js");
     exportarExcel(filtradas, parametros, filtroLabel).catch((err) => {
@@ -900,6 +928,7 @@ export default function Referencias({ referencias, materiales, parametros, reloa
         <CostoOptimo
           refId={costoOptimoRef}
           materiales={materiales}
+          materialesPrioritarios={materialesPrioritariosOptimo}
           onClose={() => { setCostoOptimoRef(null); reload(); }}
         />
       )}
