@@ -14,19 +14,33 @@ function mesFromDate(d) {
   return `${y}-${m}`;
 }
 
-function calcCostosDeOrdenes(orders) {
+// lineasOptimas (OptimalMaterial + material) se matchean contra CostMaterial.insumo
+// por nombre (mismo patrón dual-fuente que materialesDeReferenciaOptimo) porque
+// CostMaterial no tiene materialId — el insumo es texto libre proveniente de Odoo.
+function calcCostosDeOrdenes(orders, lineasOptimas = []) {
   let mpd = 0, mod = 0, cif = 0, costoOdoo = 0;
   const materialsAll = [];
   const laborAll = [];
 
+  const optimoPorNombre = new Map(
+    lineasOptimas.map((l) => [l.material.nombre.trim().toLowerCase(), l])
+  );
+
   for (const order of orders) {
-    for (const m of order.materials) mpd += m.vrPlaneado ?? 0;
+    for (const m of order.materials) {
+      mpd += m.vrPlaneado ?? 0;
+      const optimo = optimoPorNombre.get((m.insumo || "").trim().toLowerCase());
+      materialsAll.push({
+        ...m,
+        cantOptimo: optimo ? optimo.cantidad : null,
+        vrOptimo: optimo ? optimo.cantidad * optimo.material.costo : null,
+      });
+    }
     for (const l of order.laborItems) {
       if (l.tipo === "mano_obra") mod += l.vrStd ?? 0;
       else if (l.tipo === "carga_fabril") cif += l.vrStd ?? 0;
     }
     costoOdoo += order.totalEjecutado ?? 0;
-    materialsAll.push(...order.materials);
     laborAll.push(...order.laborItems);
   }
 
@@ -119,7 +133,7 @@ async function materialesDeReferenciaOptimo(ref, ordersRef) {
 // Expande una referencia en una fila por cada mes con órdenes importadas
 // (derivado de CostOrder.fechaFinal, más reciente primero), o en una única
 // fila usando Referencia.mes si no tiene órdenes importadas (manual).
-function expandirPorMes(ref, ordersByCode) {
+function expandirPorMes(ref, ordersByCode, lineasOptimas = []) {
   const orders = ordersByCode[ref.id] || [];
   if (!orders.length) return [{ ...ref, costosImportados: null }];
 
@@ -136,7 +150,7 @@ function expandirPorMes(ref, ordersByCode) {
     .map((mes) => ({
       ...ref,
       mes,
-      costosImportados: calcCostosDeOrdenes(porMes[mes]),
+      costosImportados: calcCostosDeOrdenes(porMes[mes], lineasOptimas),
     }));
 }
 
@@ -179,7 +193,7 @@ router.get("/", async (req, res) => {
       const costoOptimo = lineasOptimas.length
         ? calcCostoOptimo(ref, ordersByCode[ref.id] || [], lineasOptimas).costoOptimo
         : null;
-      return expandirPorMes(ref, ordersByCode).map((f) => ({ ...f, costoOptimo }));
+      return expandirPorMes(ref, ordersByCode, lineasOptimas).map((f) => ({ ...f, costoOptimo }));
     });
     if (mes) filas = filas.filter((f) => f.mes === mes);
 

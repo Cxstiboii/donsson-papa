@@ -82,6 +82,19 @@ function Collapsible({ title, icon: Icon, defaultOpen = true, badge, children })
 }
 
 // ── Tabla de materiales importados ────────────────────────────────────────────
+// Badge de variación en porcentaje: negativo = favorable = verde, positivo =
+// desfavorable = rojo (convención ya usada por Var.% en esta tabla).
+function VarPctBadge({ value }) {
+  if (value == null || isNaN(value)) return <span style={{ color: "var(--color-muted)" }}>—</span>;
+  const color = value > 5 ? "#991B1B" : value < -5 ? "#065F46" : "#374151";
+  const bg = value > 5 ? "#FEE2E2" : value < -5 ? "#D1FAE5" : "#F1F5F9";
+  return (
+    <span style={{ background: bg, color, borderRadius: 10, padding: "2px 7px", fontWeight: 700, fontSize: 11 }}>
+      {value > 0 ? "+" : ""}{Number(value).toFixed(1)}%
+    </span>
+  );
+}
+
 function TablaMateriasImportadas({ materials }) {
   if (!materials || materials.length === 0) {
     return (
@@ -90,6 +103,7 @@ function TablaMateriasImportadas({ materials }) {
       </div>
     );
   }
+  const pesados = materials.filter((m) => m.vrOptimo != null).length;
   return (
     <div style={{ overflowX: "auto", borderRadius: 8, border: "1px solid var(--color-border)" }}>
       <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
@@ -103,14 +117,18 @@ function TablaMateriasImportadas({ materials }) {
             <th style={{ ...TH, textAlign: "right" }}>Vr. Plan</th>
             <th style={{ ...TH, textAlign: "right" }}>Cant. Ejec</th>
             <th style={{ ...TH, textAlign: "right" }}>Vr. Ejec</th>
+            <th style={{ ...TH, textAlign: "right" }}>Cant. Óptimo</th>
+            <th style={{ ...TH, textAlign: "right" }}>Vr. Óptimo</th>
             <th style={{ ...TH, textAlign: "right" }}>Var.%</th>
+            <th style={{ ...TH, textAlign: "right" }}>Var. Óptimo vs Ejec %</th>
           </tr>
         </thead>
         <tbody>
           {materials.map((m, i) => {
             const rowBg = i % 2 === 1 ? "#F8FAFC" : undefined;
-            const varPct = m.variacionPct;
-            const varColor = varPct == null ? "#374151" : varPct > 5 ? "#991B1B" : varPct < -5 ? "#065F46" : "#374151";
+            const varOptimoEjec = m.vrOptimo != null && m.vrOptimo > 0
+              ? ((m.vrEjecutado - m.vrOptimo) / m.vrOptimo) * 100
+              : null;
             return (
               <tr key={m.id} style={{ background: rowBg, borderBottom: "1px solid var(--color-border)" }}>
                 <td style={{ ...TD, fontWeight: 500 }}>{m.insumo}</td>
@@ -121,16 +139,12 @@ function TablaMateriasImportadas({ materials }) {
                 <td style={{ ...TD, textAlign: "right" }}>{COP(m.vrPlaneado)}</td>
                 <td style={{ ...TD, textAlign: "right" }}>{fmt(m.cantEjecutado, 4)}</td>
                 <td style={{ ...TD, textAlign: "right" }}>{COP(m.vrEjecutado)}</td>
-                <td style={{ ...TD, textAlign: "right" }}>
-                  {varPct != null ? (
-                    <span style={{
-                      background: varPct > 5 ? "#FEE2E2" : varPct < -5 ? "#D1FAE5" : "#F1F5F9",
-                      color: varColor, borderRadius: 10, padding: "2px 7px", fontWeight: 700, fontSize: 11,
-                    }}>
-                      {varPct > 0 ? "+" : ""}{Number(varPct).toFixed(1)}%
-                    </span>
-                  ) : "—"}
+                <td style={{ ...TD, textAlign: "right" }}>{m.cantOptimo != null ? fmt(m.cantOptimo, 4) : "—"}</td>
+                <td style={{ ...TD, textAlign: "right", fontWeight: 600, color: "#1F3864" }}>
+                  {m.vrOptimo != null ? COP(m.vrOptimo) : "—"}
                 </td>
+                <td style={{ ...TD, textAlign: "right" }}><VarPctBadge value={m.variacionPct} /></td>
+                <td style={{ ...TD, textAlign: "right" }}><VarPctBadge value={varOptimoEjec} /></td>
               </tr>
             );
           })}
@@ -147,6 +161,16 @@ function TablaMateriasImportadas({ materials }) {
             <td style={{ ...TD, textAlign: "right" }}>
               {COP(materials.reduce((s, m) => s + (m.vrEjecutado ?? 0), 0))}
             </td>
+            <td style={TD} />
+            <td style={{ ...TD, textAlign: "right" }}>
+              <div>{COP(materials.reduce((s, m) => s + (m.vrOptimo ?? 0), 0))}</div>
+              {pesados < materials.length && (
+                <div style={{ fontSize: 10, fontWeight: 500, color: "var(--color-muted)" }}>
+                  {pesados} de {materials.length} pesados
+                </div>
+              )}
+            </td>
+            <td style={TD} />
             <td style={TD} />
           </tr>
         </tbody>
