@@ -126,8 +126,8 @@ function TablaMateriasImportadas({ materials }) {
         <tbody>
           {materials.map((m, i) => {
             const rowBg = i % 2 === 1 ? "#F8FAFC" : undefined;
-            const varOptimoEjec = m.vrOptimo != null && m.vrOptimo > 0
-              ? ((m.vrEjecutado - m.vrOptimo) / m.vrOptimo) * 100
+            const varOptimoEjec = m.vrOptimo != null && m.vrEjecutado > 0
+              ? ((m.vrOptimo - m.vrEjecutado) / m.vrEjecutado) * 100
               : null;
             return (
               <tr key={m.id} style={{ background: rowBg, borderBottom: "1px solid var(--color-border)" }}>
