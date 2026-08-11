@@ -130,28 +130,30 @@ async function materialesDeReferenciaOptimo(ref, ordersRef) {
   return [...materialesMap.values()].sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
 }
 
-// Expande una referencia en una fila por cada mes con órdenes importadas
-// (derivado de CostOrder.fechaFinal, más reciente primero), o en una única
-// fila usando Referencia.mes si no tiene órdenes importadas (manual).
-function expandirPorMes(ref, ordersByCode, lineasOptimas = []) {
+// Ordena órdenes por fecha, más reciente primero (desempate por fecha de importación).
+function ordenarPorFechaDesc(orders) {
+  return [...orders].sort((a, b) => {
+    const diffFecha = new Date(b.fechaFinal) - new Date(a.fechaFinal);
+    if (diffFecha !== 0) return diffFecha;
+    return new Date(b.fechaImportacion) - new Date(a.fechaImportacion);
+  });
+}
+
+// Resume una referencia a partir de su CostOrder más reciente (por fechaFinal,
+// desempate por fechaImportacion) — nunca suma varias órdenes entre sí, para que
+// subir una orden nueva de la misma referencia siempre reemplace a la anterior
+// como comparación vigente. Si no tiene órdenes importadas, usa los campos
+// manuales de Referencia.
+function resumenUltimaOrden(ref, ordersByCode, lineasOptimas = []) {
   const orders = ordersByCode[ref.id] || [];
-  if (!orders.length) return [{ ...ref, costosImportados: null }];
+  if (!orders.length) return { ...ref, costosImportados: null };
 
-  const porMes = {};
-  for (const o of orders) {
-    const mes = mesFromDate(o.fechaFinal);
-    if (!porMes[mes]) porMes[mes] = [];
-    porMes[mes].push(o);
-  }
-
-  return Object.keys(porMes)
-    .sort()
-    .reverse()
-    .map((mes) => ({
-      ...ref,
-      mes,
-      costosImportados: calcCostosDeOrdenes(porMes[mes], lineasOptimas),
-    }));
+  const ultima = ordenarPorFechaDesc(orders)[0];
+  return {
+    ...ref,
+    mes: mesFromDate(ultima.fechaFinal),
+    costosImportados: calcCostosDeOrdenes([ultima], lineasOptimas),
+  };
 }
 
 router.get("/", async (req, res) => {
@@ -188,12 +190,12 @@ router.get("/", async (req, res) => {
       optimalByRef[l.referenciaId].push(l);
     }
 
-    let filas = referencias.flatMap((ref) => {
+    let filas = referencias.map((ref) => {
       const lineasOptimas = optimalByRef[ref.id] || [];
       const costoOptimo = lineasOptimas.length
         ? calcCostoOptimo(ref, ordersByCode[ref.id] || [], lineasOptimas).costoOptimo
         : null;
-      return expandirPorMes(ref, ordersByCode, lineasOptimas).map((f) => ({ ...f, costoOptimo }));
+      return { ...resumenUltimaOrden(ref, ordersByCode, lineasOptimas), costoOptimo };
     });
     if (mes) filas = filas.filter((f) => f.mes === mes);
 
@@ -265,14 +267,23 @@ router.get("/:id/variacion", async (req, res) => {
       include: { laborItems: true, materials: true },
     });
 
-    const mesToFilter = mes || ref.mes;
-    const orders = allOrders.filter((o) => {
-      if (!mesToFilter) return true;
-      return mesFromDate(o.fechaFinal) === mesToFilter;
-    });
-
-    if (!orders.length) {
+    if (!allOrders.length) {
       return res.status(404).json({ error: "No hay órdenes importadas para esta referencia en el período seleccionado" });
+    }
+
+    // Sin `mes` explícito: analiza solo la orden más reciente (vigente para comparación).
+    // Con `mes`: permite analizar un período puntual desde el Historial.
+    let orders, mesToFilter;
+    if (mes) {
+      mesToFilter = mes;
+      orders = allOrders.filter((o) => mesFromDate(o.fechaFinal) === mesToFilter);
+      if (!orders.length) {
+        return res.status(404).json({ error: "No hay órdenes importadas para esta referencia en el período seleccionado" });
+      }
+    } else {
+      const ultima = ordenarPorFechaDesc(allOrders)[0];
+      orders = [ultima];
+      mesToFilter = mesFromDate(ultima.fechaFinal);
     }
 
     // Guard: cantStd is nullable — orders imported before this feature may lack it
@@ -393,6 +404,38 @@ router.get("/:id/variacion", async (req, res) => {
   } catch (e) {
     console.error("Error en análisis de variación:", e);
     res.status(500).json({ error: "Error al calcular el análisis de variación" });
+  }
+});
+
+// Historial completo de órdenes de una referencia (todas las órdenes, todos los
+// meses), más reciente primero — para comparar cada subida contra las anteriores.
+router.get("/:id/historial", async (req, res) => {
+  try {
+    const refId = req.params.id;
+    const orders = await prisma.costOrder.findMany({
+      where: { refDonsson: refId },
+      select: {
+        id: true,
+        orden: true,
+        fechaFinal: true,
+        fechaImportacion: true,
+        cantidadFabricada: true,
+        totalPlaneado: true,
+        totalEjecutado: true,
+        totalVariacion: true,
+      },
+    });
+
+    const historial = ordenarPorFechaDesc(orders).map((o, i) => ({
+      ...o,
+      variacionPct: o.totalPlaneado ? (o.totalVariacion / o.totalPlaneado) * 100 : 0,
+      esUltima: i === 0,
+    }));
+
+    res.json(historial);
+  } catch (e) {
+    console.error("Error al obtener historial de órdenes:", e);
+    res.status(500).json({ error: "Error al obtener el historial de órdenes." });
   }
 });
 

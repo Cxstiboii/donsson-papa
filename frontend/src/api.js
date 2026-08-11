@@ -77,6 +77,7 @@ export const referenciasApi = {
     }),
   variacion: (id, mes) =>
     request(`/referencias/${id}/variacion${mes ? `?mes=${encodeURIComponent(mes)}` : ""}`),
+  historial: (id) => request(`/referencias/${id}/historial`),
   optimo: (id) => request(`/referencias/${id}/optimo`),
   guardarOptimoLinea: (id, materialId, cantidad) =>
     request(`/referencias/${id}/optimo/${materialId}`, {

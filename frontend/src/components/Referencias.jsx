@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Plus, Pencil, Trash2, Search, FileBarChart, AlertCircle, X,
-  Download, ChevronDown, ChevronRight, Package, Wrench, BarChart2, Scale,
+  Download, ChevronDown, ChevronRight, Package, Wrench, BarChart2, Scale, History,
 } from "lucide-react";
 import { referenciasApi, materialesApi } from "../api.js";
 import { calcCostos, calcCostosEstandar, COP, mesLabel, fmt } from "../utils/costos.js";
@@ -25,6 +25,11 @@ function VarianzaOptimoBadge({ costoOptimo, costoEstandar }) {
       )}
     </div>
   );
+}
+
+function mesFromFecha(iso) {
+  const d = new Date(iso);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
 
 function emptyForm() {
@@ -454,6 +459,90 @@ function ModalVariacion({ refId, refMes, onClose }) {
   );
 }
 
+// ── Historial de órdenes ──────────────────────────────────────────────────────
+// Lista completa de CostOrder de una referencia (todos los meses), más reciente
+// primero, con el delta % de Total Ejecutado contra la orden inmediatamente
+// anterior — así se ve de un vistazo cómo varió cada subida frente a la última.
+function TablaHistorial({ refId, refreshToken }) {
+  const [historial, setHistorial] = useState(null);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setHistorial(null);
+    setError(null);
+    referenciasApi.historial(refId)
+      .then((data) => { if (!cancelled) setHistorial(data); })
+      .catch((e) => { if (!cancelled) setError(e.message); });
+    return () => { cancelled = true; };
+  }, [refId, refreshToken]);
+
+  if (error) {
+    return (
+      <div className="alert alert-error"><AlertCircle size={16} /> {error}</div>
+    );
+  }
+  if (!historial) {
+    return <div className="spinner-wrap"><div className="spinner" /></div>;
+  }
+  if (historial.length === 0) {
+    return (
+      <div style={{ fontSize: 13, color: "var(--color-muted)", padding: "16px 0" }}>
+        Sin órdenes importadas para esta referencia.
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ overflowX: "auto", borderRadius: 8, border: "1px solid var(--color-border)" }}>
+      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+        <thead>
+          <tr style={{ background: "#F8FAFC", borderBottom: "1px solid var(--color-border)" }}>
+            <th style={TH}>Fecha</th>
+            <th style={TH}>Orden</th>
+            <th style={{ ...TH, textAlign: "right" }}>Cant. Fabricada</th>
+            <th style={{ ...TH, textAlign: "right" }}>Total Planeado</th>
+            <th style={{ ...TH, textAlign: "right" }}>Total Ejecutado</th>
+            <th style={{ ...TH, textAlign: "right" }}>Var. %</th>
+            <th style={{ ...TH, textAlign: "right" }}>vs. orden anterior</th>
+          </tr>
+        </thead>
+        <tbody>
+          {historial.map((o, i) => {
+            const anterior = historial[i + 1];
+            const deltaPct = anterior && anterior.totalEjecutado
+              ? ((o.totalEjecutado - anterior.totalEjecutado) / anterior.totalEjecutado) * 100
+              : null;
+            return (
+              <tr key={o.id} style={{
+                background: o.esUltima ? "#EEF2FF" : i % 2 === 1 ? "#F8FAFC" : undefined,
+                borderBottom: "1px solid var(--color-border)",
+              }}>
+                <td style={{ ...TD, fontWeight: o.esUltima ? 700 : 500 }}>
+                  {new Date(o.fechaFinal).toLocaleDateString("es-CO")}
+                  {o.esUltima && (
+                    <span style={{ marginLeft: 6, fontSize: 10, background: "#C7D2FE", color: "#3730A3", borderRadius: 6, padding: "1px 6px", fontWeight: 700 }}>
+                      Última
+                    </span>
+                  )}
+                </td>
+                <td style={TD}>{o.orden}</td>
+                <td style={{ ...TD, textAlign: "right" }}>{fmt(o.cantidadFabricada, 0)}</td>
+                <td style={{ ...TD, textAlign: "right" }}>{COP(o.totalPlaneado)}</td>
+                <td style={{ ...TD, textAlign: "right", fontWeight: 600 }}>{COP(o.totalEjecutado)}</td>
+                <td style={{ ...TD, textAlign: "right" }}><VarPctBadge value={o.variacionPct} /></td>
+                <td style={{ ...TD, textAlign: "right" }}>
+                  {deltaPct != null ? <VarPctBadge value={deltaPct} /> : <span style={{ color: "var(--color-muted)" }}>—</span>}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 // ── Componente principal ──────────────────────────────────────────────────────
 export default function Referencias({ referencias, materiales, parametros, reload, mesActivo }) {
   const [busqueda, setBusqueda] = useState("");
@@ -489,12 +578,12 @@ export default function Referencias({ referencias, materiales, parametros, reloa
   const drawerRefKeyRef = useRef(null);
 
   useEffect(() => {
-    drawerRefKeyRef.current = drawerRef ? `${drawerRef.id}-${drawerRef.mes}` : null;
+    drawerRefKeyRef.current = drawerRef ? drawerRef.id : null;
   }, [drawerRef]);
 
   useEffect(() => {
     if (!drawerRefKeyRef.current) return;
-    const updated = referencias.find((r) => `${r.id}-${r.mes}` === drawerRefKeyRef.current);
+    const updated = referencias.find((r) => r.id === drawerRefKeyRef.current);
     if (updated) setDrawerRef(updated);
   }, [referencias]);
 
@@ -582,13 +671,19 @@ export default function Referencias({ referencias, materiales, parametros, reloa
   }
 
   async function handleDelete(r) {
-    const filasRelacionadas = referencias.filter((x) => x.id === r.id);
-    if (r.costosImportados && filasRelacionadas.length > 1) {
-      const meses = filasRelacionadas.map((x) => mesLabel(x.mes)).join(", ");
+    // La tabla principal ahora solo muestra la orden más reciente por referencia,
+    // así que hay que consultar el historial completo para saber si el borrado
+    // se va a llevar más meses de los que se ven en la fila.
+    let historial = [];
+    if (r.costosImportados) {
+      try { historial = await referenciasApi.historial(r.id); } catch { /* si falla, se sigue con la confirmación simple */ }
+    }
+    const meses = [...new Set(historial.map((o) => mesFromFecha(o.fechaFinal)))];
+    if (meses.length > 1) {
       const ok = confirm(
-        `La referencia ${r.id} tiene órdenes importadas en ${filasRelacionadas.length} meses distintos (${meses}).\n\n` +
-        `Eliminar la referencia borrará TODOS esos meses, no solo ${mesLabel(r.mes)}.\n\n` +
-        `Si solo quieres borrar las órdenes de ${mesLabel(r.mes)}, cancela y usa el botón "Eliminar mes".\n\n` +
+        `La referencia ${r.id} tiene ${historial.length} órdenes importadas en ${meses.length} meses distintos (${meses.map(mesLabel).join(", ")}).\n\n` +
+        `Eliminar la referencia borrará TODO el historial, no solo la orden más reciente (${mesLabel(r.mes)}).\n\n` +
+        `Si solo quieres borrar las órdenes del mes de la orden más reciente, cancela y usa el botón "Eliminar mes".\n\n` +
         `¿Eliminar la referencia completa de todas formas?`
       );
       if (!ok) return;
@@ -746,7 +841,7 @@ export default function Referencias({ referencias, materiales, parametros, reloa
                 : "badge-info";
               const rowBg = rowIdx % 2 === 1 ? "#F8FAFC" : undefined;
               return (
-                <tr key={`${r.id}-${r.mes}`} style={{ background: rowBg, cursor: "pointer" }} onClick={() => openDrawer(r)}>
+                <tr key={r.id} style={{ background: rowBg, cursor: "pointer" }} onClick={() => openDrawer(r)}>
                   <td>
                     {r.id}
                     {c.fuenteImportada && (
@@ -959,7 +1054,7 @@ export default function Referencias({ referencias, materiales, parametros, reloa
                   <span style={{ color: "var(--color-primary)" }}>{drawerRef.id}</span>
                   {drawerRef.costosImportados && (
                     <span style={{ marginLeft: 10, fontSize: 11, background: "#D1FAE5", color: "#065F46", borderRadius: 8, padding: "2px 8px", fontWeight: 700, verticalAlign: "middle" }}>
-                      {drawerRef.costosImportados.ordenes} OP importada{drawerRef.costosImportados.ordenes !== 1 ? "s" : ""}
+                      Última orden — {mesLabel(drawerRef.mes)}
                     </span>
                   )}
                 </h2>
@@ -1055,6 +1150,11 @@ export default function Referencias({ referencias, materiales, parametros, reloa
                   </div>
                 )}
               </section>
+
+              {/* ── Historial de órdenes ── */}
+              <Collapsible title="Historial de órdenes" icon={History} defaultOpen={false}>
+                <TablaHistorial refId={drawerRef.id} refreshToken={referencias} />
+              </Collapsible>
 
               <hr style={{ border: "none", borderTop: "1px solid var(--color-border)", margin: "0 0 24px" }} />
 
