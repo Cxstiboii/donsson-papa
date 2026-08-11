@@ -65,10 +65,11 @@ model OptimalMaterial {
 }
 
 model Parametros {
-  id        Int   @id @default(1)
-  tarifaMOD Float @default(9500) // DEPRECATED: no interviene en cálculos ni en la exportación — no eliminar para estabilidad del schema
-  pctGAV    Float @default(18) // DEPRECATED: gastos adm. y ventas — ya no se usa en la exportación (reporte solo de costos); no eliminar para estabilidad del schema
-  pctMargen Float @default(25) // DEPRECATED: margen de utilidad sobre ventas — ya no se usa en la exportación (reporte solo de costos); no eliminar para estabilidad del schema
+  id                 Int   @id @default(1)
+  tarifaMOD          Float @default(9500) // DEPRECATED: no interviene en cálculos ni en la exportación — no eliminar para estabilidad del schema
+  pctGAV             Float @default(18) // DEPRECATED: gastos adm. y ventas — ya no se usa en la exportación (reporte solo de costos); no eliminar para estabilidad del schema
+  pctMargen          Float @default(25) // DEPRECATED: margen de utilidad sobre ventas — ya no se usa en la exportación (reporte solo de costos); no eliminar para estabilidad del schema
+  pctStdMateriaPrima Float @default(6) // % que se resta de la Cant. Plan de cada materia prima para obtener la Cant. Std calculada (tabla de materiales de la orden)
 }
 
 model Usuario {

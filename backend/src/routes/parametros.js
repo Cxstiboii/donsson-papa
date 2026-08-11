@@ -18,21 +18,22 @@ router.get("/", async (req, res) => {
 
 router.put("/", async (req, res) => {
   try {
-    const { tarifaMOD, tarifaCIF, pctGAV, pctMargen } = req.body;
+    const { tarifaMOD, tarifaCIF, pctGAV, pctMargen, pctStdMateriaPrima } = req.body;
     if (
       typeof tarifaMOD !== "number" || tarifaMOD < 0 ||
       typeof tarifaCIF !== "number" || tarifaCIF < 0 ||
       typeof pctGAV !== "number" || pctGAV < 0 || pctGAV > 100 ||
-      typeof pctMargen !== "number" || pctMargen < 0 || pctMargen >= 100
+      typeof pctMargen !== "number" || pctMargen < 0 || pctMargen >= 100 ||
+      typeof pctStdMateriaPrima !== "number" || pctStdMateriaPrima < 0 || pctStdMateriaPrima >= 100
     ) {
       return res.status(400).json({
-        error: "Valores inválidos. pctMargen debe ser entre 0 y 99. Los demás valores deben ser positivos.",
+        error: "Valores inválidos. pctMargen y pctStdMateriaPrima deben ser entre 0 y 99. Los demás valores deben ser positivos.",
       });
     }
     const parametros = await prisma.parametros.upsert({
       where: { id: 1 },
-      update: { tarifaMOD, pctGAV, pctMargen },
-      create: { id: 1, tarifaMOD, pctGAV, pctMargen },
+      update: { tarifaMOD, pctGAV, pctMargen, pctStdMateriaPrima },
+      create: { id: 1, tarifaMOD, pctGAV, pctMargen, pctStdMateriaPrima },
     });
     res.json(parametros);
   } catch (e) {
