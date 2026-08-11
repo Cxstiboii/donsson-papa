@@ -3,7 +3,7 @@ import {
   Plus, Pencil, Trash2, Search, FileBarChart, AlertCircle, X,
   Download, ChevronDown, ChevronRight, Package, Wrench, BarChart2, Scale,
 } from "lucide-react";
-import { referenciasApi, materialesApi, parametrosApi } from "../api.js";
+import { referenciasApi, materialesApi } from "../api.js";
 import { calcCostos, calcCostosEstandar, COP, mesLabel, fmt } from "../utils/costos.js";
 import { parseCOP, formatCOP } from "../utils/costos.js";
 import FiltroFecha, { dentroDeRango } from "../FiltroFecha.jsx";
@@ -95,85 +95,7 @@ function VarPctBadge({ value }) {
   );
 }
 
-// Cant. Std Calc / Vr. Std Calc: cantidad planeada de cada materia prima
-// menos el % configurable en Parámetros (pctStdMateriaPrima, 6% por defecto),
-// valorizada al Costo MP vigente. Distinta de "Cant. Std"/"Vr. Std" (esas
-// vienen directo del import de Odoo, no se calculan).
-function calcStdMateriaPrima(m, pctStd) {
-  if (m.cantPlaneado == null) return { cantStdCalc: null, vrStdCalc: null };
-  const cantStdCalc = m.cantPlaneado * (1 - pctStd / 100);
-  const vrStdCalc = cantStdCalc * (m.costoMp ?? 0);
-  return { cantStdCalc, vrStdCalc };
-}
-
-// Editor inline del % usado en "Cant. Std Calc" / "Vr. Std Calc". Es un único
-// parámetro global (Parametros.pctStdMateriaPrima) que aplica por igual a
-// todas las referencias/órdenes, no algo por referencia.
-function PctStdMateriaPrimaEditor({ parametros, reload }) {
-  const [editing, setEditing] = useState(false);
-  const [valor, setValor] = useState(String(parametros.pctStdMateriaPrima ?? 6));
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
-
-  async function guardar() {
-    const num = Number(valor);
-    if (isNaN(num) || num < 0 || num >= 100) {
-      setError("Debe ser un número entre 0 y 99");
-      return;
-    }
-    setSaving(true);
-    setError("");
-    try {
-      await parametrosApi.update({
-        tarifaMOD: parametros.tarifaMOD ?? 0,
-        tarifaCIF: parametros.tarifaCIF ?? 0,
-        pctGAV: parametros.pctGAV ?? 0,
-        pctMargen: parametros.pctMargen ?? 0,
-        pctStdMateriaPrima: num,
-      });
-      setEditing(false);
-      await reload();
-    } catch (e) {
-      setError(e.message);
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  if (!editing) {
-    return (
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, fontSize: 12, color: "var(--color-muted)" }}>
-        <span>
-          Cant. Std Calc = Cant. Plan − <strong>{parametros.pctStdMateriaPrima}%</strong>
-        </span>
-        <button className="btn btn-ghost" style={{ height: 24, padding: "0 8px", fontSize: 11 }} onClick={() => setEditing(true)}>
-          <Pencil size={11} /> Editar %
-        </button>
-      </div>
-    );
-  }
-
-  return (
-    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
-      <label style={{ fontSize: 12, color: "var(--color-muted)" }}>% a restar de Cant. Plan:</label>
-      <input
-        type="number" className="input" style={{ width: 80, height: 28, fontSize: 12 }}
-        value={valor} min={0} max={99} step="0.1"
-        onChange={(e) => setValor(e.target.value)}
-      />
-      <button className="btn btn-primary" style={{ height: 28, padding: "0 10px", fontSize: 12 }} disabled={saving} onClick={guardar}>
-        Guardar
-      </button>
-      <button className="btn btn-ghost" style={{ height: 28, padding: "0 10px", fontSize: 12 }} disabled={saving}
-        onClick={() => { setEditing(false); setValor(String(parametros.pctStdMateriaPrima ?? 6)); setError(""); }}>
-        Cancelar
-      </button>
-      {error && <span style={{ fontSize: 11, color: "#991B1B" }}>{error}</span>}
-    </div>
-  );
-}
-
-function TablaMateriasImportadas({ materials, pctStd }) {
+function TablaMateriasImportadas({ materials }) {
   if (!materials || materials.length === 0) {
     return (
       <div style={{ fontSize: 13, color: "var(--color-muted)", padding: "16px 0" }}>
@@ -195,8 +117,6 @@ function TablaMateriasImportadas({ materials, pctStd }) {
             <th style={{ ...TH, textAlign: "right" }}>Vr. Plan</th>
             <th style={{ ...TH, textAlign: "right" }}>Cant. Ejec</th>
             <th style={{ ...TH, textAlign: "right" }}>Vr. Ejec</th>
-            <th style={{ ...TH, textAlign: "right" }} title={`Cant. Plan menos ${pctStd}%`}>Cant. Std Calc</th>
-            <th style={{ ...TH, textAlign: "right" }} title={`Cant. Std Calc × Costo MP`}>Vr. Std Calc</th>
             <th style={{ ...TH, textAlign: "right" }}>Cant. Óptimo</th>
             <th style={{ ...TH, textAlign: "right" }}>Vr. Óptimo</th>
             <th style={{ ...TH, textAlign: "right" }}>Var.%</th>
@@ -209,7 +129,6 @@ function TablaMateriasImportadas({ materials, pctStd }) {
             const varOptimoEjec = m.vrOptimo != null && m.vrEjecutado > 0
               ? ((m.vrOptimo - m.vrEjecutado) / m.vrEjecutado) * 100
               : null;
-            const { cantStdCalc, vrStdCalc } = calcStdMateriaPrima(m, pctStd);
             return (
               <tr key={m.id} style={{ background: rowBg, borderBottom: "1px solid var(--color-border)" }}>
                 <td style={{ ...TD, fontWeight: 500 }}>{m.insumo}</td>
@@ -220,10 +139,6 @@ function TablaMateriasImportadas({ materials, pctStd }) {
                 <td style={{ ...TD, textAlign: "right" }}>{COP(m.vrPlaneado)}</td>
                 <td style={{ ...TD, textAlign: "right" }}>{fmt(m.cantEjecutado, 4)}</td>
                 <td style={{ ...TD, textAlign: "right" }}>{COP(m.vrEjecutado)}</td>
-                <td style={{ ...TD, textAlign: "right" }}>{cantStdCalc != null ? fmt(cantStdCalc, 4) : "—"}</td>
-                <td style={{ ...TD, textAlign: "right", fontWeight: 600, color: "#1F3864" }}>
-                  {vrStdCalc != null ? COP(vrStdCalc) : "—"}
-                </td>
                 <td style={{ ...TD, textAlign: "right" }}>{m.cantOptimo != null ? fmt(m.cantOptimo, 4) : "—"}</td>
                 <td style={{ ...TD, textAlign: "right", fontWeight: 600, color: "#1F3864" }}>
                   {m.vrOptimo != null ? COP(m.vrOptimo) : "—"}
@@ -245,10 +160,6 @@ function TablaMateriasImportadas({ materials, pctStd }) {
             <td style={TD} />
             <td style={{ ...TD, textAlign: "right" }}>
               {COP(materials.reduce((s, m) => s + (m.vrEjecutado ?? 0), 0))}
-            </td>
-            <td style={TD} />
-            <td style={{ ...TD, textAlign: "right", color: "#1F3864" }}>
-              {COP(materials.reduce((s, m) => s + (calcStdMateriaPrima(m, pctStd).vrStdCalc ?? 0), 0))}
             </td>
             <td style={TD} />
             <td style={{ ...TD, textAlign: "right" }}>
@@ -1152,8 +1063,7 @@ export default function Referencias({ referencias, materiales, parametros, reloa
                 <>
                   {/* Sección A — Materiales */}
                   <Collapsible title="A — Materiales" icon={Package} badge={drawerRef.costosImportados.materials?.length}>
-                    <PctStdMateriaPrimaEditor parametros={parametros} reload={reload} />
-                    <TablaMateriasImportadas materials={drawerRef.costosImportados.materials} pctStd={parametros.pctStdMateriaPrima ?? 6} />
+                    <TablaMateriasImportadas materials={drawerRef.costosImportados.materials} />
                   </Collapsible>
 
                   {/* Sección B — Mano de Obra y Carga Fabril */}
