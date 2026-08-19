@@ -9,7 +9,8 @@ export function calcCostos(ref, params) {
   const divisorMargen = 1 - (params.pctMargen || 0) / 100;
   const precioVenta = divisorMargen > 0 ? costoTotal / divisorMargen : costoTotal;
   const costoReal = ref.costoReal || 0;
-  const variacion = costoReal > 0 ? ((costoProd - costoReal) / costoReal) * 100 : null;
+  // Base = ejecutado (costoReal), no estándar: positivo = ejecutado más caro que estándar → desfavorable.
+  const variacion = costoReal > 0 ? ((costoReal - costoProd) / costoReal) * 100 : null;
   return {
     mpd,
     mod,
@@ -39,9 +40,10 @@ export function calcCostosEstandar(ref, params) {
   }
   const costoEstandar = imp.costoEstandar ?? (imp.mpd + imp.mod + imp.cif);
   const costoOdoo = imp.costoOdoo ?? 0;
+  // Base = ejecutado (costoOdoo), no estándar: positivo = ejecutado más caro que estándar → desfavorable.
   const variacion =
     costoEstandar > 0 && costoOdoo > 0
-      ? ((costoOdoo - costoEstandar) / costoEstandar) * 100
+      ? ((costoOdoo - costoEstandar) / costoOdoo) * 100
       : null;
   return {
     mpd: imp.mpd,

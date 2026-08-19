@@ -831,7 +831,7 @@ export default function Referencias({ referencias, materiales, parametros, reloa
             {filtradas.map((r, rowIdx) => {
               const c = calcCostosEstandar(r, parametros);
               const variacion = c.variacion;
-              // Variación % = (costoOdoo − costoEstandar) / costoEstandar
+              // Variación % = (costoOdoo − costoEstandar) / costoOdoo (base = ejecutado)
               // Positivo = ejecutado más caro que estándar → DESFAVORABLE → rojo
               // Negativo = ejecutado más barato que estándar → FAVORABLE → verde
               const variacionClass =
