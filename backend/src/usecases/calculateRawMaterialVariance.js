@@ -1,6 +1,7 @@
 // Use case: variance calculation for Materia Prima rows (persisted/backend view,
-// Plan-based — the Std-Calc-based display variance lives client-side because it
-// depends on the live-editable Parametros.pctStdMateriaPrima).
+// Plan-based — used for the >20% overconsumption alert and import warnings.
+// The table's displayed Var. Cant/Valor/% use the real Std instead, computed
+// client-side in frontend/src/utils/materialVariance.js from cantStd/vrStd.
 require("../domain/costEntities");
 
 const OVERCONSUMPTION_THRESHOLD = 1.20; // Ejecutado > Planeado * 120%

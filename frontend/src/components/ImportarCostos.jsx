@@ -2,9 +2,9 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import {
   Upload, AlertCircle, CheckCircle, ChevronLeft, Trash2,
   Clock, Package, Wrench, TrendingUp, TrendingDown,
-  AlertTriangle, FileText, CalendarDays, Pencil,
+  AlertTriangle, FileText, CalendarDays,
 } from "lucide-react";
-import { getToken, costosApi, parametrosApi } from "../api.js";
+import { getToken, costosApi } from "../api.js";
 import { COP, fmt } from "../utils/costos.js";
 import { computeMaterialViewModel } from "../utils/materialVariance.js";
 
@@ -190,74 +190,7 @@ function TablaLabor({ items }) {
 
 // ── Tabla Materia Prima ───────────────────────────────────────────────────────
 
-// Editor inline del % usado en "Cant. Std Calc" / "Vr. Std Calc". Es un único
-// parámetro global (Parametros.pctStdMateriaPrima) que aplica por igual a
-// todas las órdenes, no algo por orden.
-function PctStdMateriaPrimaEditor({ parametros, reload }) {
-  const [editing, setEditing] = useState(false);
-  const [valor, setValor] = useState(String(parametros?.pctStdMateriaPrima ?? 6));
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
-
-  async function guardar() {
-    const num = Number(valor);
-    if (isNaN(num) || num < 0 || num >= 100) {
-      setError("Debe ser un número entre 0 y 99");
-      return;
-    }
-    setSaving(true);
-    setError("");
-    try {
-      await parametrosApi.update({
-        tarifaMOD: parametros?.tarifaMOD ?? 0,
-        tarifaCIF: parametros?.tarifaCIF ?? 0,
-        pctGAV: parametros?.pctGAV ?? 0,
-        pctMargen: parametros?.pctMargen ?? 0,
-        pctStdMateriaPrima: num,
-      });
-      setEditing(false);
-      if (reload) await reload();
-    } catch (e) {
-      setError(e.message);
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  if (!editing) {
-    return (
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, fontSize: 12, color: "#6B7280" }}>
-        <span>
-          Cant. Std Calc = Plan Cant − <strong>{parametros?.pctStdMateriaPrima ?? 6}%</strong> (aplica a todas las órdenes)
-        </span>
-        <button className="btn btn-ghost" style={{ height: 24, padding: "0 8px", fontSize: 11 }} onClick={() => setEditing(true)}>
-          <Pencil size={11} /> Editar %
-        </button>
-      </div>
-    );
-  }
-
-  return (
-    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
-      <label style={{ fontSize: 12, color: "#6B7280" }}>% a restar de Plan Cant:</label>
-      <input
-        type="number" className="input" style={{ width: 80, height: 28, fontSize: 12 }}
-        value={valor} min={0} max={99} step="0.1"
-        onChange={(e) => setValor(e.target.value)}
-      />
-      <button className="btn btn-primary" style={{ height: 28, padding: "0 10px", fontSize: 12 }} disabled={saving} onClick={guardar}>
-        Guardar
-      </button>
-      <button className="btn btn-ghost" style={{ height: 28, padding: "0 10px", fontSize: 12 }} disabled={saving}
-        onClick={() => { setEditing(false); setValor(String(parametros?.pctStdMateriaPrima ?? 6)); setError(""); }}>
-        Cancelar
-      </button>
-      {error && <span style={{ fontSize: 11, color: "#991B1B" }}>{error}</span>}
-    </div>
-  );
-}
-
-function TablaMateriales({ items, pctStd }) {
+function TablaMateriales({ items }) {
   const th = {
     padding: "8px 10px", background: "#1F3864", color: "#fff",
     fontSize: 11, fontWeight: 700, textAlign: "right", whiteSpace: "nowrap",
@@ -266,7 +199,7 @@ function TablaMateriales({ items, pctStd }) {
   const td = { padding: "7px 10px", fontSize: 12, textAlign: "right", borderBottom: "1px solid #E5E7EB", whiteSpace: "nowrap" };
   const tdL = { ...td, textAlign: "left", fontWeight: 600 };
 
-  const viewModels = items.map((item) => computeMaterialViewModel(item, pctStd));
+  const viewModels = items.map((item) => computeMaterialViewModel(item));
 
   return (
     <div style={{ overflowX: "auto" }}>
@@ -275,8 +208,8 @@ function TablaMateriales({ items, pctStd }) {
           <tr>
             <th style={thL}>Insumo</th>
             <th style={th}>Costo MP</th>
-            <th style={th} title={`Plan Cant menos ${pctStd}%`}>Std Calc Cant</th>
-            <th style={th} title="Std Calc Cant × Costo MP">Std Calc Valor</th>
+            <th style={th}>Std Cant</th>
+            <th style={th}>Std Valor</th>
             <th style={th}>Plan Cant</th>
             <th style={th}>Plan Valor</th>
             <th style={th}>Ejec Cant</th>
@@ -294,8 +227,8 @@ function TablaMateriales({ items, pctStd }) {
               <tr key={i} style={{ background: rowBg }}>
                 <td style={tdL}>{vm.insumo}</td>
                 <td style={td}>{COP(vm.costoMp)}</td>
-                <td style={td}>{vm.cantStdCalc != null ? fmt(vm.cantStdCalc, 4) : "—"}</td>
-                <td style={{ ...td, fontWeight: 600, color: "#1F3864" }}>{vm.vrStdCalc != null ? COP(vm.vrStdCalc) : "—"}</td>
+                <td style={td}>{vm.cantStd != null ? fmt(vm.cantStd, 4) : "—"}</td>
+                <td style={{ ...td, fontWeight: 600, color: "#1F3864" }}>{vm.vrStd != null ? COP(vm.vrStd) : "—"}</td>
                 <td style={td}>{fmt(vm.cantPlaneado, 4)}</td>
                 <td style={td}>{COP(vm.vrPlaneado)}</td>
                 <td style={td}>{fmt(vm.cantEjecutado, 4)}</td>
@@ -311,16 +244,16 @@ function TablaMateriales({ items, pctStd }) {
         </tbody>
         <tfoot>
           {(() => {
-            const totalStdCalc = viewModels.reduce((s, x) => s + (x.vrStdCalc ?? 0), 0);
+            const totalStd = viewModels.reduce((s, x) => s + (x.vrStd || 0), 0);
             const totalEjec = viewModels.reduce((s, x) => s + x.vrEjecutado, 0);
-            const totalVar = totalEjec - totalStdCalc;
-            const totalVarPct = totalStdCalc > 0 ? (totalVar / totalStdCalc) * 100 : null;
+            const totalVar = totalEjec - totalStd;
+            const totalVarPct = totalStd > 0 ? (totalVar / totalStd) * 100 : null;
             return (
               <tr style={{ background: "#EFF6FF", fontWeight: 700 }}>
                 <td style={{ ...tdL, borderTop: "2px solid #2E75B6" }}>TOTAL</td>
                 <td style={{ ...td, borderTop: "2px solid #2E75B6" }} />
                 <td style={{ ...td, borderTop: "2px solid #2E75B6" }} />
-                <td style={{ ...td, borderTop: "2px solid #2E75B6", fontWeight: 700 }}>{COP(totalStdCalc)}</td>
+                <td style={{ ...td, borderTop: "2px solid #2E75B6", fontWeight: 700 }}>{COP(totalStd)}</td>
                 <td style={{ ...td, borderTop: "2px solid #2E75B6" }} />
                 <td style={{ ...td, borderTop: "2px solid #2E75B6" }}>{COP(viewModels.reduce((s, x) => s + x.vrPlaneado, 0))}</td>
                 <td style={{ ...td, borderTop: "2px solid #2E75B6" }} />
@@ -339,7 +272,7 @@ function TablaMateriales({ items, pctStd }) {
 
 // ── Order Detail View ─────────────────────────────────────────────────────────
 
-function OrderDetail({ order, onBack, parametros, reload }) {
+function OrderDetail({ order, onBack }) {
   const [activeTab, setActiveTab] = useState("mo");
 
   const cfItems = order.laborItems.filter((x) => x.tipo === "carga_fabril");
@@ -456,8 +389,7 @@ function OrderDetail({ order, onBack, parametros, reload }) {
       {activeTab === "mp" && (
         <>
           <SectionHeader>Materia Prima — {mpItems.length} insumo{mpItems.length !== 1 ? "s" : ""}</SectionHeader>
-          <PctStdMateriaPrimaEditor parametros={parametros} reload={reload} />
-          <TablaMateriales items={mpItems} pctStd={parametros?.pctStdMateriaPrima ?? 6} />
+          <TablaMateriales items={mpItems} />
         </>
       )}
     </div>
@@ -538,7 +470,7 @@ function OrderList({ orders, onSelect, onDelete }) {
 
 // ── Main Component ────────────────────────────────────────────────────────────
 
-export default function ImportarCostos({ reload, parametros }) {
+export default function ImportarCostos({ reload }) {
   const [orders, setOrders] = useState([]);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [file, setFile] = useState(null);
@@ -626,8 +558,6 @@ export default function ImportarCostos({ reload, parametros }) {
       <OrderDetail
         order={selectedOrder}
         onBack={() => setSelectedOrder(null)}
-        parametros={parametros}
-        reload={reload}
       />
     );
   }

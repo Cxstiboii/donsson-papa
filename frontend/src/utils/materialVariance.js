@@ -1,18 +1,16 @@
-// Use case (frontend): derive the Materia Prima table's Std Calc baseline and
-// its variance columns. Lives client-side because it depends on the live,
-// user-editable Parametros.pctStdMateriaPrima — it can't be precomputed by
-// the backend at import time.
+// Use case (frontend): derive the Materia Prima table's variance columns
+// against the real Std (Cant./Vr. x Ud. Planeado Standard, imported from the
+// Odoo Excel) — same convention as Mano de Obra/Carga Fabril:
+// Var. Valor = Ejec Valor - Std Valor; Var. % = that / Std Valor x 100.
 
 /**
- * @param {{cantPlaneado: number, costoMp: number, cantEjecutado: number, vrEjecutado: number}} item
- * @param {number} pctStd percentage subtracted from Plan Cant to get the Std Calc baseline
+ * @param {{cantStd: number|null, vrStd: number|null, cantEjecutado: number, vrEjecutado: number}} item
  */
-export function computeMaterialViewModel(item, pctStd) {
-  const cantStdCalc = item.cantPlaneado != null ? item.cantPlaneado * (1 - pctStd / 100) : null;
-  const vrStdCalc = cantStdCalc != null ? cantStdCalc * (item.costoMp ?? 0) : null;
-  const varCant = cantStdCalc != null ? item.cantEjecutado - cantStdCalc : null;
-  const varValor = vrStdCalc != null ? item.vrEjecutado - vrStdCalc : null;
-  const varPct = vrStdCalc ? (varValor / vrStdCalc) * 100 : null;
+export function computeMaterialViewModel(item) {
+  const hasStd = item.cantStd != null && item.vrStd != null;
+  const varCant = hasStd ? item.cantEjecutado - item.cantStd : null;
+  const varValor = hasStd ? item.vrEjecutado - item.vrStd : null;
+  const varPct = hasStd && item.vrStd ? (varValor / item.vrStd) * 100 : null;
 
-  return { ...item, cantStdCalc, vrStdCalc, varCant, varValor, varPct };
+  return { ...item, varCant, varValor, varPct };
 }
