@@ -275,12 +275,12 @@ function TablaMateriales({ items, pctStd }) {
           <tr>
             <th style={thL}>Insumo</th>
             <th style={th}>Costo MP</th>
+            <th style={th} title={`Plan Cant menos ${pctStd}%`}>Std Calc Cant</th>
+            <th style={th} title="Std Calc Cant × Costo MP">Std Calc Valor</th>
             <th style={th}>Plan Cant</th>
             <th style={th}>Plan Valor</th>
             <th style={th}>Ejec Cant</th>
             <th style={th}>Ejec Valor</th>
-            <th style={th} title={`Plan Cant menos ${pctStd}%`}>Std Calc Cant</th>
-            <th style={th} title="Std Calc Cant × Costo MP">Std Calc Valor</th>
             <th style={th}>Var. Cant</th>
             <th style={th}>Var. Valor</th>
             <th style={th}>Var. %</th>
@@ -294,12 +294,12 @@ function TablaMateriales({ items, pctStd }) {
               <tr key={i} style={{ background: rowBg }}>
                 <td style={tdL}>{vm.insumo}</td>
                 <td style={td}>{COP(vm.costoMp)}</td>
+                <td style={td}>{vm.cantStdCalc != null ? fmt(vm.cantStdCalc, 4) : "—"}</td>
+                <td style={{ ...td, fontWeight: 600, color: "#1F3864" }}>{vm.vrStdCalc != null ? COP(vm.vrStdCalc) : "—"}</td>
                 <td style={td}>{fmt(vm.cantPlaneado, 4)}</td>
                 <td style={td}>{COP(vm.vrPlaneado)}</td>
                 <td style={td}>{fmt(vm.cantEjecutado, 4)}</td>
                 <td style={td}>{COP(vm.vrEjecutado)}</td>
-                <td style={td}>{vm.cantStdCalc != null ? fmt(vm.cantStdCalc, 4) : "—"}</td>
-                <td style={{ ...td, fontWeight: 600, color: "#1F3864" }}>{vm.vrStdCalc != null ? COP(vm.vrStdCalc) : "—"}</td>
                 <td style={{ ...td, color: varCantColor, fontWeight: 600 }}>
                   {vm.varCant != null ? `${vm.varCant > 0 ? "+" : ""}${fmt(vm.varCant, 4)}` : "—"}
                 </td>
@@ -320,11 +320,11 @@ function TablaMateriales({ items, pctStd }) {
                 <td style={{ ...tdL, borderTop: "2px solid #2E75B6" }}>TOTAL</td>
                 <td style={{ ...td, borderTop: "2px solid #2E75B6" }} />
                 <td style={{ ...td, borderTop: "2px solid #2E75B6" }} />
+                <td style={{ ...td, borderTop: "2px solid #2E75B6", fontWeight: 700 }}>{COP(totalStdCalc)}</td>
+                <td style={{ ...td, borderTop: "2px solid #2E75B6" }} />
                 <td style={{ ...td, borderTop: "2px solid #2E75B6" }}>{COP(viewModels.reduce((s, x) => s + x.vrPlaneado, 0))}</td>
                 <td style={{ ...td, borderTop: "2px solid #2E75B6" }} />
                 <td style={{ ...td, borderTop: "2px solid #2E75B6" }}>{COP(totalEjec)}</td>
-                <td style={{ ...td, borderTop: "2px solid #2E75B6" }} />
-                <td style={{ ...td, borderTop: "2px solid #2E75B6", fontWeight: 700 }}>{COP(totalStdCalc)}</td>
                 <td style={{ ...td, borderTop: "2px solid #2E75B6" }} />
                 <td style={{ ...td, borderTop: "2px solid #2E75B6" }}>{COP(totalVar)}</td>
                 <td style={{ ...td, borderTop: "2px solid #2E75B6" }}><PctBadge v={totalVarPct} /></td>
