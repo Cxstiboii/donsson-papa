@@ -1,80 +1,27 @@
 const express = require("express");
 const multer = require("multer");
-const XLSX = require("xlsx");
 const prisma = require("../prisma");
+const {
+  parseNum,
+  num,
+  processOdooExcelReportUseCase,
+} = require("../usecases/processOdooExcelReportUseCase");
+const {
+  STANDARD_RATE_MO,
+  STANDARD_RATE_CF,
+  RATE_TOLERANCE,
+  calculateLaborVarianceItem,
+  checkStandardRateDeviation,
+} = require("../usecases/calculateLaborVariance");
+const {
+  calculateRawMaterialVarianceItem,
+} = require("../usecases/calculateRawMaterialVariance");
 
 const router = express.Router();
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 20 * 1024 * 1024 }, // 20 MB máximo
 });
-
-const EXPECTED_COLUMNS = [
-  "Tipo", "Orden", "Documento origen",
-  "Producto", "Ref donsson", "Producto clase", "Cantidad fabricada",
-  "Insumo", "Costo mp",
-  "Cant. x Ud. Planeado Standard", "Vr. x Ud. Planeado Standard",
-  "Cant. x Ud. Planeado", "Vr. x Ud. Planeado",
-  "Cant. x Ud. Ejecutado", "Vr. x Ud. Ejecutado",
-  "Estado",
-];
-
-// Un proceso de MO es válido si empieza con "MANO DE OBRA" (sin importar el sufijo)
-// o si es "CARGA FABRIL". Esto permite procesos nuevos sin modificar código.
-const esProcesoDeMO = (nombre) => {
-  const n = String(nombre || "").trim().toUpperCase();
-  return n.startsWith("MANO DE OBRA") || n.startsWith("CARGA FABRIL");
-};
-
-const TARIFA_STD_MO = 3.80;
-const TARIFA_STD_CF = 9.30;
-const TARIFA_TOLERANCE = 0.05;
-
-function isNullish(val) {
-  if (val === null || val === undefined || val === "") return true;
-  const s = String(val).trim().toLowerCase();
-  return s === "" || s === "nan" || s === "null" || s === "undefined";
-}
-
-function parseNum(val) {
-  if (isNullish(val)) return NaN;
-  if (typeof val === "number") return isNaN(val) ? NaN : val;
-  const s = String(val).trim();
-  // Handle Colombian format: 1.234,56 → 1234.56
-  const n = parseFloat(s.replace(/\./g, "").replace(/,/g, "."));
-  return isNaN(n) ? NaN : n;
-}
-
-function num(val, fallback = 0) {
-  const n = parseNum(val);
-  return isNaN(n) ? fallback : n;
-}
-
-
-function extractCode(productoStr) {
-  const match = String(productoStr || "").match(/\[([^\]]+)\]/);
-  return match ? match[1].trim() : "";
-}
-
-function safeDiv(a, b) {
-  if (!b || isNaN(b) || b === 0 || isNaN(a)) return null;
-  return a / b;
-}
-
-function variacionPct(varVal, base) {
-  if (!base || base === 0 || isNaN(base)) return 0;
-  return (varVal / base) * 100;
-}
-
-
-function inferirFamilia(refCode) {
-  const c = String(refCode || "").trim().toUpperCase();
-  if (/^AAA/.test(c)) return "AAA";
-  if (/^A/.test(c)) return "A";
-  if (/^B/.test(c)) return "B";
-  if (/^C/.test(c)) return "C";
-  return "SIN_CLASIFICAR";
-}
 
 // ── POST / ─ Import Excel ─────────────────────────────────────────────────────
 router.post("/", upload.single("file"), async (req, res) => {
@@ -86,150 +33,61 @@ router.post("/", upload.single("file"), async (req, res) => {
       return res.status(400).json({ error: "El campo 'mes' es requerido (formato YYYY-MM)" });
     }
 
-    const wb = XLSX.read(req.file.buffer, { type: "buffer", cellDates: true });
-    const ws = wb.Sheets[wb.SheetNames[0]];
-    const allRows = XLSX.utils.sheet_to_json(ws, { defval: null });
-
-    if (!allRows.length) return res.status(400).json({ error: "El archivo está vacío" });
-
-    // ── Validate columns ──────────────────────────────────────────────────────
-    const headers = Object.keys(allRows[0]);
-    const missing = EXPECTED_COLUMNS.filter((c) => !headers.includes(c));
-    if (missing.length > 0) {
-      return res.status(400).json({ error: `Columnas faltantes: ${missing.join(", ")}` });
-    }
-
-    // ── Strip totals row (last row where Tipo is null/NaN) ────────────────────
-    let rows = [...allRows];
-    if (rows.length && isNullish(rows[rows.length - 1]["Tipo"])) {
-      rows = rows.slice(0, -1);
-    }
-    rows = rows.filter((r) => !isNullish(r["Tipo"]));
-
-    if (!rows.length) return res.status(400).json({ error: "No se encontraron filas de datos válidas" });
-
-    // ── Order metadata from first valid row ───────────────────────────────────
-    const first = rows[0];
-    const orden = String(first["Orden"] || "").trim();
-    const documentoOrigen = String(first["Documento origen"] || "").trim();
-    const productoRaw = String(first["Producto"] || "").trim();
-    const refDonsson = String(first["Ref donsson"] || "").trim();
-    const productoClase = String(first["Producto clase"] || "").trim();
-    const cantidadFabricada = num(first["Cantidad fabricada"]);
-    const estado = String(first["Estado"] || "").trim();
-
-    if (!orden) return res.status(400).json({ error: "La columna 'Orden' está vacía en la primera fila" });
-
-    // ── Split by Tipo ─────────────────────────────────────────────────────────
-    const rowsMO = rows.filter((r) => String(r["Tipo"]).trim() === "Mano de obra");
-    const rowsCF = rows.filter((r) => String(r["Tipo"]).trim() === "Carga fabril");
-    const rowsMP = rows.filter((r) => String(r["Tipo"]).trim() === "Materia prima");
-
     // ── Load material catalog for price lookup ────────────────────────────────
     const allMaterials = await prisma.material.findMany();
     const materialMap = new Map(
       allMaterials.map((m) => [m.nombre.trim().toLowerCase(), m])
     );
 
-    // ── Hard validations ──────────────────────────────────────────────────────
-    const errors = [];
-    const warnings = [];
-
-    if (rowsCF.length !== 1) {
-      errors.push(`Se esperaba exactamente 1 fila de Carga Fabril, se encontraron ${rowsCF.length}`);
-    }
-
-    const procesosEncontrados = new Set(rowsMO.map((r) => String(r["Insumo"] || "").trim().toUpperCase()));
-
-    // Solo alertar si hay procesos que NO empiezan con "MANO DE OBRA" — se omiten del guardado
-    const procesosDesconocidos = [...procesosEncontrados].filter((p) => !esProcesoDeMO(p));
-    if (procesosDesconocidos.length > 0) {
-      warnings.push(`Procesos de MO no reconocidos (se omiten): ${procesosDesconocidos.join(", ")}`);
-    }
-
-    // Only flag as invalid if material is also absent from catalog (no fallback at all)
-    const mpInvalidas = rowsMP.filter((r) => {
-      const key = String(r["Insumo"] || "").trim().toLowerCase();
-      return !materialMap.has(key) && (isNullish(r["Costo mp"]) || num(r["Costo mp"]) === 0);
-    });
-    if (mpInvalidas.length > 0) {
-      errors.push(`Materias primas sin costo en catálogo ni en Excel: ${mpInvalidas.map((r) => r["Insumo"]).join(", ")}`);
-    }
+    const { errors, warnings, orderMeta, rowsMO, rowsCF, rowsMP } =
+      processOdooExcelReportUseCase(req.file.buffer, materialMap);
 
     if (errors.length > 0) {
-      return res.status(422).json({ errors, warnings, parsed: { orden, refDonsson } });
+      return res.status(422).json({
+        error: errors[0],
+        errors,
+        warnings,
+        parsed: orderMeta ? { orden: orderMeta.orden, refDonsson: orderMeta.refDonsson } : undefined,
+      });
     }
+
+    const { orden, documentoOrigen, productoRaw, productoCodigo, refDonsson, productoClase, cantidadFabricada, estado } = orderMeta;
 
     // ── Process Carga Fabril ──────────────────────────────────────────────────
     const cfRow = rowsCF[0];
-    const cfCantStd = parseNum(cfRow["Cant. x Ud. Planeado Standard"]);
-    const cfVrStd = parseNum(cfRow["Vr. x Ud. Planeado Standard"]);
-    const cfCantPlan = num(cfRow["Cant. x Ud. Planeado"]);
-    const cfVrPlan = num(cfRow["Vr. x Ud. Planeado"]);
-    const cfCantEjec = num(cfRow["Cant. x Ud. Ejecutado"]);
-    const cfVrEjec = num(cfRow["Vr. x Ud. Ejecutado"]);
-
-    const cfTarifaStd = safeDiv(cfVrStd, cfCantStd);
-    const cfTarifaPlan = safeDiv(cfVrPlan, cfCantPlan);
-    const cfTarifaEjec = safeDiv(cfVrEjec, cfCantEjec);
-
-    if (cfTarifaStd !== null && Math.abs(cfTarifaStd - TARIFA_STD_CF) > TARIFA_TOLERANCE) {
-      warnings.push(`Tarifa estándar CF: $${cfTarifaStd.toFixed(4)}/seg (esperado $${TARIFA_STD_CF}/seg ±${TARIFA_TOLERANCE})`);
-    }
-
-    const cfItem = {
+    const cfItem = calculateLaborVarianceItem({
       tipo: "carga_fabril",
       proceso: String(cfRow["Insumo"] || "CARGA FABRIL").trim(),
-      cantStd: isNaN(cfCantStd) ? null : cfCantStd,
-      vrStd: isNaN(cfVrStd) ? null : cfVrStd,
-      tarifaStd: cfTarifaStd,
-      cantPlaneado: cfCantPlan, vrPlaneado: cfVrPlan, tarifaPlaneada: cfTarifaPlan,
-      cantEjecutado: cfCantEjec, vrEjecutado: cfVrEjec, tarifaEjecutada: cfTarifaEjec,
-      variacionCantidad: cfCantEjec - cfCantPlan,
-      variacionValor: cfVrEjec - cfVrPlan,
-      variacionPct: variacionPct(cfVrEjec - cfVrPlan, cfVrPlan),
-      eficienciaTiempoPct: cfCantPlan > 0 ? ((cfCantPlan - cfCantEjec) / cfCantPlan) * 100 : 0,
-      alertaTarifa: false,
-    };
+      cantStd: parseNum(cfRow["Cant. x Ud. Planeado Standard"]),
+      vrStd: parseNum(cfRow["Vr. x Ud. Planeado Standard"]),
+      cantPlan: num(cfRow["Cant. x Ud. Planeado"]),
+      vrPlan: num(cfRow["Vr. x Ud. Planeado"]),
+      cantEjec: num(cfRow["Cant. x Ud. Ejecutado"]),
+      vrEjec: num(cfRow["Vr. x Ud. Ejecutado"]),
+    });
+
+    if (checkStandardRateDeviation(cfItem.tarifaStd, STANDARD_RATE_CF, RATE_TOLERANCE)) {
+      warnings.push(`Tarifa estándar CF: $${cfItem.tarifaStd.toFixed(4)}/seg (esperado $${STANDARD_RATE_CF}/seg ±${RATE_TOLERANCE})`);
+    }
 
     // ── Process Mano de Obra ──────────────────────────────────────────────────
-    // Filtrar solo procesos reconocidos (empiezan con "MANO DE OBRA"); los desconocidos
-    // ya quedaron en warnings y se omiten silenciosamente.
-    const moItems = rowsMO.filter((r) => esProcesoDeMO(String(r["Insumo"] || "").trim())).map((r) => {
-      const cantStd = parseNum(r["Cant. x Ud. Planeado Standard"]);
-      const vrStd = parseNum(r["Vr. x Ud. Planeado Standard"]);
-      const cantPlan = num(r["Cant. x Ud. Planeado"]);
-      const vrPlan = num(r["Vr. x Ud. Planeado"]);
-      const cantEjec = num(r["Cant. x Ud. Ejecutado"]);
-      const vrEjec = num(r["Vr. x Ud. Ejecutado"]);
-
-      const tarifaStd = safeDiv(vrStd, cantStd);
-      const tarifaPlan = safeDiv(vrPlan, cantPlan);
-      const tarifaEjec = safeDiv(vrEjec, cantEjec);
-      const varVal = vrEjec - vrPlan;
-      const alertaTarifa = tarifaEjec !== null && tarifaPlan !== null && tarifaEjec > tarifaPlan * 1.10;
-
-      if (tarifaStd !== null && Math.abs(tarifaStd - TARIFA_STD_MO) > TARIFA_TOLERANCE) {
-        warnings.push(`Tarifa estándar MO "${r["Insumo"]}": $${tarifaStd.toFixed(4)}/seg (esperado $${TARIFA_STD_MO}/seg ±${TARIFA_TOLERANCE})`);
-      }
-      if (alertaTarifa) {
-        warnings.push(`Tarifa ejecutada MO "${r["Insumo"]}" supera en >10% la tarifa planeada ($${tarifaEjec?.toFixed(4)} vs $${tarifaPlan?.toFixed(4)}/seg)`);
-      }
-
-      return {
+    const moItems = rowsMO.map((r) => {
+      const item = calculateLaborVarianceItem({
         tipo: "mano_obra",
         proceso: String(r["Insumo"] || "").trim(),
-        cantStd: isNaN(cantStd) ? null : cantStd,
-        vrStd: isNaN(vrStd) ? null : vrStd,
-        tarifaStd,
-        cantPlaneado: cantPlan, vrPlaneado: vrPlan, tarifaPlaneada: tarifaPlan,
-        cantEjecutado: cantEjec, vrEjecutado: vrEjec, tarifaEjecutada: tarifaEjec,
-        variacionCantidad: cantEjec - cantPlan,
-        variacionValor: varVal,
-        variacionPct: variacionPct(varVal, vrPlan),
-        eficienciaTiempoPct: cantPlan > 0 ? ((cantPlan - cantEjec) / cantPlan) * 100 : 0,
-        alertaTarifa,
-      };
+        cantStd: parseNum(r["Cant. x Ud. Planeado Standard"]),
+        vrStd: parseNum(r["Vr. x Ud. Planeado Standard"]),
+        cantPlan: num(r["Cant. x Ud. Planeado"]),
+        vrPlan: num(r["Vr. x Ud. Planeado"]),
+        cantEjec: num(r["Cant. x Ud. Ejecutado"]),
+        vrEjec: num(r["Vr. x Ud. Ejecutado"]),
+      });
+
+      if (checkStandardRateDeviation(item.tarifaStd, STANDARD_RATE_MO, RATE_TOLERANCE)) {
+        warnings.push(`Tarifa estándar MO "${r["Insumo"]}": $${item.tarifaStd.toFixed(4)}/seg (esperado $${STANDARD_RATE_MO}/seg ±${RATE_TOLERANCE})`);
+      }
+
+      return item;
     });
 
     // ── Process Materia Prima ─────────────────────────────────────────────────
@@ -255,35 +113,22 @@ router.post("/", upload.single("file"), async (req, res) => {
         warnings.push(`Material "${insumoNombre}" no encontrado en catálogo; se usó Costo mp del Excel ($${costoMp}) y se creará automáticamente`);
       }
 
-      const cantStd = parseNum(r["Cant. x Ud. Planeado Standard"]);
-      const vrStd = parseNum(r["Vr. x Ud. Planeado Standard"]);
-      const cantPlan = num(r["Cant. x Ud. Planeado"]);
-      const cantEjec = num(r["Cant. x Ud. Ejecutado"]);
-
-      // Use Excel monetary values directly; fall back to recalculation if missing
-      const vrPlanExcel = num(r["Vr. x Ud. Planeado"]);
-      const vrEjecExcel = num(r["Vr. x Ud. Ejecutado"]);
-      const vrPlan = vrPlanExcel > 0 ? vrPlanExcel : cantPlan * costoMp;
-      const vrEjec = vrEjecExcel > 0 ? vrEjecExcel : cantEjec * costoMp;
-      const varVal = vrEjec - vrPlan;
-      const alertaCantidad = cantPlan > 0 && cantEjec > cantPlan * 1.20;
-
-      if (alertaCantidad) {
-        warnings.push(`Sobreconsumo MP "${insumoNombre}": ${cantEjec.toFixed(4)} ejecutado vs ${cantPlan.toFixed(4)} planeado (>20%)`);
-      }
-
-      return {
+      const item = calculateRawMaterialVarianceItem({
         insumo: insumoNombre,
         costoMp,
-        cantStd: isNaN(cantStd) ? null : cantStd,
-        vrStd: isNaN(vrStd) ? null : vrStd,
-        cantPlaneado: cantPlan, vrPlaneado: vrPlan,
-        cantEjecutado: cantEjec, vrEjecutado: vrEjec,
-        variacionCantidad: cantEjec - cantPlan,
-        variacionValor: varVal,
-        variacionPct: variacionPct(varVal, vrPlan),
-        alertaCantidad,
-      };
+        cantStd: parseNum(r["Cant. x Ud. Planeado Standard"]),
+        vrStd: parseNum(r["Vr. x Ud. Planeado Standard"]),
+        cantPlan: num(r["Cant. x Ud. Planeado"]),
+        vrPlanExcel: num(r["Vr. x Ud. Planeado"]),
+        cantEjec: num(r["Cant. x Ud. Ejecutado"]),
+        vrEjecExcel: num(r["Vr. x Ud. Ejecutado"]),
+      });
+
+      if (item.alertaCantidad) {
+        warnings.push(`Sobreconsumo MP "${insumoNombre}": ${item.cantEjecutado.toFixed(4)} ejecutado vs ${item.cantPlaneado.toFixed(4)} planeado (>20%)`);
+      }
+
+      return item;
     });
 
     // ── Totals ────────────────────────────────────────────────────────────────
@@ -311,7 +156,7 @@ router.post("/", upload.single("file"), async (req, res) => {
     const orderData = {
       documentoOrigen, refDonsson,
       producto: productoRaw,
-      productoCodigo: extractCode(productoRaw),
+      productoCodigo,
       productoClase, cantidadFabricada,
       fechaInicial, fechaFinal,
       estado, totalPlaneado, totalEjecutado, totalVariacion,
@@ -331,7 +176,7 @@ router.post("/", upload.single("file"), async (req, res) => {
         const familiaParaUsar =
           existingRef?.familia && existingRef.familia !== "SIN_CLASIFICAR" && existingRef.familia !== ""
             ? existingRef.familia
-            : inferirFamilia(refDonsson);
+            : orderMeta.familiaSugerida;
 
         await tx.referencia.upsert({
           where: { id: refDonsson },
@@ -407,14 +252,6 @@ router.post("/", upload.single("file"), async (req, res) => {
       where: { id: savedOrderId },
       include: { laborItems: true, materials: true },
     });
-
-    // Para limpiar duplicados existentes si los hubiera antes de este fix:
-    // DELETE FROM "CostMaterial" WHERE id NOT IN (
-    //   SELECT MIN(id) FROM "CostMaterial" GROUP BY "orderId", insumo
-    // );
-    // DELETE FROM "CostLabor" WHERE id NOT IN (
-    //   SELECT MIN(id) FROM "CostLabor" GROUP BY "orderId", proceso
-    // );
 
     res.json({
       success: true,

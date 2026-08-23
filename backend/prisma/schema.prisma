@@ -116,11 +116,9 @@ model CostLabor {
   cantEjecutado       Float
   vrEjecutado         Float
   tarifaEjecutada     Float?
-  variacionCantidad   Float
-  variacionValor      Float
-  variacionPct        Float
-  eficienciaTiempoPct Float?
-  alertaTarifa        Boolean   @default(false)
+  variacionCantidad   Float?
+  variacionValor      Float?
+  variacionPct        Float?
 
   @@unique([orderId, proceso])
 }

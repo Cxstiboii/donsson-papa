@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import { getToken, costosApi, parametrosApi } from "../api.js";
 import { COP, fmt } from "../utils/costos.js";
+import { computeMaterialViewModel } from "../utils/materialVariance.js";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -26,27 +27,17 @@ function fmtPct(v, { alwaysSign = true } = {}) {
   return `${sign}${Number(v).toFixed(1)}%`;
 }
 
-function PctBadge({ v, inverse = false }) {
+function PctBadge({ v }) {
   if (v == null || isNaN(v)) return <span style={{ color: "#9CA3AF" }}>—</span>;
   // For cost: positive (over-cost) = bad, negative (saving) = good
-  // inverse = true: positive = good (e.g. eficiencia)
-  const isBad = inverse ? v < -1 : v > 1;
-  const isGood = inverse ? v > 1 : v < -1;
+  const isBad = v > 1;
+  const isGood = v < -1;
   const color = isBad ? "#991B1B" : isGood ? "#065F46" : "#374151";
   const bg = isBad ? "#FEE2E2" : isGood ? "#D1FAE5" : "#F1F5F9";
   const sign = v > 0 ? "+" : "";
   return (
     <span style={{ background: bg, color, borderRadius: 10, padding: "2px 8px", fontWeight: 700, fontSize: 12 }}>
       {sign}{Number(v).toFixed(1)}%
-    </span>
-  );
-}
-
-function AlertDot({ active }) {
-  if (!active) return <span style={{ color: "#9CA3AF" }}>—</span>;
-  return (
-    <span style={{ background: "#FEE2E2", color: "#991B1B", borderRadius: 10, padding: "2px 8px", fontWeight: 700, fontSize: 12 }}>
-      ⚠ Alerta
     </span>
   );
 }
@@ -145,8 +136,6 @@ function TablaLabor({ items }) {
             <th style={th}>Ejec Tarifa</th>
             <th style={th}>Var. Valor</th>
             <th style={th}>Var. %</th>
-            <th style={th}>Eficiencia</th>
-            <th style={th}>Tarifa</th>
           </tr>
         </thead>
         <tbody>
@@ -166,29 +155,33 @@ function TablaLabor({ items }) {
                 <td style={td}>{fmtTarifa(item.tarifaEjecutada)}</td>
                 <td style={td}>{COP(item.variacionValor)}</td>
                 <td style={td}><PctBadge v={item.variacionPct} /></td>
-                <td style={td}><PctBadge v={item.eficienciaTiempoPct} inverse /></td>
-                <td style={td}><AlertDot active={item.alertaTarifa} /></td>
               </tr>
             );
           })}
         </tbody>
         <tfoot>
-          <tr style={{ background: "#EFF6FF", fontWeight: 700 }}>
-            <td style={{ ...tdL, borderTop: "2px solid #2E75B6" }}>TOTAL</td>
-            <td style={{ ...td, borderTop: "2px solid #2E75B6" }} />
-            <td style={{ ...td, borderTop: "2px solid #2E75B6" }}>{COP(items.reduce((s, x) => s + (x.vrStd || 0), 0))}</td>
-            <td style={{ ...td, borderTop: "2px solid #2E75B6" }} />
-            <td style={{ ...td, borderTop: "2px solid #2E75B6" }} />
-            <td style={{ ...td, borderTop: "2px solid #2E75B6" }}>{COP(items.reduce((s, x) => s + x.vrPlaneado, 0))}</td>
-            <td style={{ ...td, borderTop: "2px solid #2E75B6" }} />
-            <td style={{ ...td, borderTop: "2px solid #2E75B6" }} />
-            <td style={{ ...td, borderTop: "2px solid #2E75B6" }}>{COP(items.reduce((s, x) => s + x.vrEjecutado, 0))}</td>
-            <td style={{ ...td, borderTop: "2px solid #2E75B6" }} />
-            <td style={{ ...td, borderTop: "2px solid #2E75B6" }} />
-            <td style={{ ...td, borderTop: "2px solid #2E75B6" }} />
-            <td style={{ ...td, borderTop: "2px solid #2E75B6" }} />
-            <td style={{ ...td, borderTop: "2px solid #2E75B6" }} />
-          </tr>
+          {(() => {
+            const totalStd = items.reduce((s, x) => s + (x.vrStd || 0), 0);
+            const totalEjec = items.reduce((s, x) => s + x.vrEjecutado, 0);
+            const totalVar = totalEjec - totalStd;
+            const totalVarPct = totalStd > 0 ? (totalVar / totalStd) * 100 : null;
+            return (
+              <tr style={{ background: "#EFF6FF", fontWeight: 700 }}>
+                <td style={{ ...tdL, borderTop: "2px solid #2E75B6" }}>TOTAL</td>
+                <td style={{ ...td, borderTop: "2px solid #2E75B6" }} />
+                <td style={{ ...td, borderTop: "2px solid #2E75B6" }}>{COP(totalStd)}</td>
+                <td style={{ ...td, borderTop: "2px solid #2E75B6" }} />
+                <td style={{ ...td, borderTop: "2px solid #2E75B6" }} />
+                <td style={{ ...td, borderTop: "2px solid #2E75B6" }}>{COP(items.reduce((s, x) => s + x.vrPlaneado, 0))}</td>
+                <td style={{ ...td, borderTop: "2px solid #2E75B6" }} />
+                <td style={{ ...td, borderTop: "2px solid #2E75B6" }} />
+                <td style={{ ...td, borderTop: "2px solid #2E75B6" }}>{COP(totalEjec)}</td>
+                <td style={{ ...td, borderTop: "2px solid #2E75B6" }} />
+                <td style={{ ...td, borderTop: "2px solid #2E75B6" }}>{COP(totalVar)}</td>
+                <td style={{ ...td, borderTop: "2px solid #2E75B6" }}><PctBadge v={totalVarPct} /></td>
+              </tr>
+            );
+          })()}
         </tfoot>
       </table>
     </div>
@@ -196,16 +189,6 @@ function TablaLabor({ items }) {
 }
 
 // ── Tabla Materia Prima ───────────────────────────────────────────────────────
-
-// Cant. Std Calc / Vr. Std Calc: cantidad planeada de cada materia prima
-// menos el % configurable en Parámetros (pctStdMateriaPrima, 6% por defecto,
-// aplica a todas las órdenes), valorizada al Costo MP vigente.
-function calcStdMateriaPrima(item, pctStd) {
-  if (item.cantPlaneado == null) return { cantStdCalc: null, vrStdCalc: null };
-  const cantStdCalc = item.cantPlaneado * (1 - pctStd / 100);
-  const vrStdCalc = cantStdCalc * (item.costoMp ?? 0);
-  return { cantStdCalc, vrStdCalc };
-}
 
 // Editor inline del % usado en "Cant. Std Calc" / "Vr. Std Calc". Es un único
 // parámetro global (Parametros.pctStdMateriaPrima) que aplica por igual a
@@ -283,6 +266,8 @@ function TablaMateriales({ items, pctStd }) {
   const td = { padding: "7px 10px", fontSize: 12, textAlign: "right", borderBottom: "1px solid #E5E7EB", whiteSpace: "nowrap" };
   const tdL = { ...td, textAlign: "left", fontWeight: 600 };
 
+  const viewModels = items.map((item) => computeMaterialViewModel(item, pctStd));
+
   return (
     <div style={{ overflowX: "auto" }}>
       <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 780 }}>
@@ -299,52 +284,53 @@ function TablaMateriales({ items, pctStd }) {
             <th style={th}>Var. Cant</th>
             <th style={th}>Var. Valor</th>
             <th style={th}>Var. %</th>
-            <th style={th}>Cant.</th>
           </tr>
         </thead>
         <tbody>
-          {items.map((item, i) => {
-            const rowBg = item.alertaCantidad ? "#FFF7ED" : i % 2 === 0 ? "#fff" : "#F9FAFB";
-            const varCant = item.variacionCantidad;
-            const varCantColor = varCant > 0 ? "#991B1B" : varCant < 0 ? "#065F46" : "#374151";
-            const { cantStdCalc, vrStdCalc } = calcStdMateriaPrima(item, pctStd);
+          {viewModels.map((vm, i) => {
+            const rowBg = vm.alertaCantidad ? "#FFF7ED" : i % 2 === 0 ? "#fff" : "#F9FAFB";
+            const varCantColor = vm.varCant > 0 ? "#991B1B" : vm.varCant < 0 ? "#065F46" : "#374151";
             return (
               <tr key={i} style={{ background: rowBg }}>
-                <td style={tdL}>{item.insumo}</td>
-                <td style={td}>{COP(item.costoMp)}</td>
-                <td style={td}>{fmt(item.cantPlaneado, 4)}</td>
-                <td style={td}>{COP(item.vrPlaneado)}</td>
-                <td style={td}>{fmt(item.cantEjecutado, 4)}</td>
-                <td style={td}>{COP(item.vrEjecutado)}</td>
-                <td style={td}>{cantStdCalc != null ? fmt(cantStdCalc, 4) : "—"}</td>
-                <td style={{ ...td, fontWeight: 600, color: "#1F3864" }}>{vrStdCalc != null ? COP(vrStdCalc) : "—"}</td>
+                <td style={tdL}>{vm.insumo}</td>
+                <td style={td}>{COP(vm.costoMp)}</td>
+                <td style={td}>{fmt(vm.cantPlaneado, 4)}</td>
+                <td style={td}>{COP(vm.vrPlaneado)}</td>
+                <td style={td}>{fmt(vm.cantEjecutado, 4)}</td>
+                <td style={td}>{COP(vm.vrEjecutado)}</td>
+                <td style={td}>{vm.cantStdCalc != null ? fmt(vm.cantStdCalc, 4) : "—"}</td>
+                <td style={{ ...td, fontWeight: 600, color: "#1F3864" }}>{vm.vrStdCalc != null ? COP(vm.vrStdCalc) : "—"}</td>
                 <td style={{ ...td, color: varCantColor, fontWeight: 600 }}>
-                  {varCant > 0 ? "+" : ""}{fmt(varCant, 4)}
+                  {vm.varCant != null ? `${vm.varCant > 0 ? "+" : ""}${fmt(vm.varCant, 4)}` : "—"}
                 </td>
-                <td style={td}>{COP(item.variacionValor)}</td>
-                <td style={td}><PctBadge v={item.variacionPct} /></td>
-                <td style={td}><AlertDot active={item.alertaCantidad} /></td>
+                <td style={td}>{vm.varValor != null ? COP(vm.varValor) : "—"}</td>
+                <td style={td}><PctBadge v={vm.varPct} /></td>
               </tr>
             );
           })}
         </tbody>
         <tfoot>
-          <tr style={{ background: "#EFF6FF", fontWeight: 700 }}>
-            <td style={{ ...tdL, borderTop: "2px solid #2E75B6" }}>TOTAL</td>
-            <td style={{ ...td, borderTop: "2px solid #2E75B6" }} />
-            <td style={{ ...td, borderTop: "2px solid #2E75B6" }} />
-            <td style={{ ...td, borderTop: "2px solid #2E75B6" }}>{COP(items.reduce((s, x) => s + x.vrPlaneado, 0))}</td>
-            <td style={{ ...td, borderTop: "2px solid #2E75B6" }} />
-            <td style={{ ...td, borderTop: "2px solid #2E75B6" }}>{COP(items.reduce((s, x) => s + x.vrEjecutado, 0))}</td>
-            <td style={{ ...td, borderTop: "2px solid #2E75B6" }} />
-            <td style={{ ...td, borderTop: "2px solid #2E75B6", fontWeight: 700 }}>
-              {COP(items.reduce((s, x) => s + (calcStdMateriaPrima(x, pctStd).vrStdCalc ?? 0), 0))}
-            </td>
-            <td style={{ ...td, borderTop: "2px solid #2E75B6" }} />
-            <td style={{ ...td, borderTop: "2px solid #2E75B6" }} />
-            <td style={{ ...td, borderTop: "2px solid #2E75B6" }} />
-            <td style={{ ...td, borderTop: "2px solid #2E75B6" }} />
-          </tr>
+          {(() => {
+            const totalStdCalc = viewModels.reduce((s, x) => s + (x.vrStdCalc ?? 0), 0);
+            const totalEjec = viewModels.reduce((s, x) => s + x.vrEjecutado, 0);
+            const totalVar = totalEjec - totalStdCalc;
+            const totalVarPct = totalStdCalc > 0 ? (totalVar / totalStdCalc) * 100 : null;
+            return (
+              <tr style={{ background: "#EFF6FF", fontWeight: 700 }}>
+                <td style={{ ...tdL, borderTop: "2px solid #2E75B6" }}>TOTAL</td>
+                <td style={{ ...td, borderTop: "2px solid #2E75B6" }} />
+                <td style={{ ...td, borderTop: "2px solid #2E75B6" }} />
+                <td style={{ ...td, borderTop: "2px solid #2E75B6" }}>{COP(viewModels.reduce((s, x) => s + x.vrPlaneado, 0))}</td>
+                <td style={{ ...td, borderTop: "2px solid #2E75B6" }} />
+                <td style={{ ...td, borderTop: "2px solid #2E75B6" }}>{COP(totalEjec)}</td>
+                <td style={{ ...td, borderTop: "2px solid #2E75B6" }} />
+                <td style={{ ...td, borderTop: "2px solid #2E75B6", fontWeight: 700 }}>{COP(totalStdCalc)}</td>
+                <td style={{ ...td, borderTop: "2px solid #2E75B6" }} />
+                <td style={{ ...td, borderTop: "2px solid #2E75B6" }}>{COP(totalVar)}</td>
+                <td style={{ ...td, borderTop: "2px solid #2E75B6" }}><PctBadge v={totalVarPct} /></td>
+              </tr>
+            );
+          })()}
         </tfoot>
       </table>
     </div>
@@ -360,10 +346,7 @@ function OrderDetail({ order, onBack, parametros, reload }) {
   const moItems = order.laborItems.filter((x) => x.tipo === "mano_obra");
   const mpItems = order.materials;
 
-  const alertCount = [
-    ...order.laborItems.filter((x) => x.alertaTarifa),
-    ...order.materials.filter((x) => x.alertaCantidad),
-  ].length;
+  const alertCount = order.materials.filter((x) => x.alertaCantidad).length;
 
   const formatDate = (d) => {
     if (!d) return "—";
@@ -427,9 +410,7 @@ function OrderDetail({ order, onBack, parametros, reload }) {
           <AlertTriangle size={16} style={{ color: "#92400E", flexShrink: 0 }} />
           <span style={{ fontSize: 13, color: "#92400E", fontWeight: 600 }}>
             {alertCount} alerta{alertCount !== 1 ? "s" : ""} activa{alertCount !== 1 ? "s" : ""}
-            {order.laborItems.filter((x) => x.alertaTarifa).length > 0 &&
-              ` — tarifa MO elevada (${order.laborItems.filter((x) => x.alertaTarifa).map((x) => x.proceso).join(", ")})`}
-            {order.materials.filter((x) => x.alertaCantidad).length > 0 &&
+            {alertCount > 0 &&
               ` — sobreconsumo MP (${order.materials.filter((x) => x.alertaCantidad).map((x) => x.insumo).join(", ")})`}
           </span>
         </div>
