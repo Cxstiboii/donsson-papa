@@ -223,6 +223,7 @@ function TablaMateriales({ items }) {
           {viewModels.map((vm, i) => {
             const rowBg = vm.alertaCantidad ? "#FFF7ED" : i % 2 === 0 ? "#fff" : "#F9FAFB";
             const varCantColor = vm.varCant > 0 ? "#991B1B" : vm.varCant < 0 ? "#065F46" : "#374151";
+            const varTitle = vm.varVsPlan ? "Sin Std real importado: variación calculada vs. Plan" : undefined;
             return (
               <tr key={i} style={{ background: rowBg }}>
                 <td style={tdL}>{vm.insumo}</td>
@@ -233,11 +234,13 @@ function TablaMateriales({ items }) {
                 <td style={td}>{COP(vm.vrPlaneado)}</td>
                 <td style={td}>{fmt(vm.cantEjecutado, 4)}</td>
                 <td style={td}>{COP(vm.vrEjecutado)}</td>
-                <td style={{ ...td, color: varCantColor, fontWeight: 600 }}>
+                <td style={{ ...td, color: varCantColor, fontWeight: 600, fontStyle: vm.varVsPlan ? "italic" : "normal" }} title={varTitle}>
                   {vm.varCant != null ? `${vm.varCant > 0 ? "+" : ""}${fmt(vm.varCant, 4)}` : "—"}
                 </td>
-                <td style={td}>{vm.varValor != null ? COP(vm.varValor) : "—"}</td>
-                <td style={td}><PctBadge v={vm.varPct} /></td>
+                <td style={{ ...td, fontStyle: vm.varVsPlan ? "italic" : "normal" }} title={varTitle}>
+                  {vm.varValor != null ? COP(vm.varValor) : "—"}
+                </td>
+                <td style={td} title={varTitle}><PctBadge v={vm.varPct} /></td>
               </tr>
             );
           })}
@@ -246,8 +249,11 @@ function TablaMateriales({ items }) {
           {(() => {
             const totalStd = viewModels.reduce((s, x) => s + (x.vrStd || 0), 0);
             const totalEjec = viewModels.reduce((s, x) => s + x.vrEjecutado, 0);
-            const totalVar = totalEjec - totalStd;
-            const totalVarPct = totalStd > 0 ? (totalVar / totalStd) * 100 : null;
+            // Base de comparación por fila: Std real si existe, si no Plan (fallback ya
+            // aplicado en varValor por computeMaterialViewModel).
+            const totalBase = viewModels.reduce((s, x) => s + (x.vrStd != null ? x.vrStd : x.vrPlaneado), 0);
+            const totalVar = viewModels.reduce((s, x) => s + (x.varValor || 0), 0);
+            const totalVarPct = totalBase > 0 ? (totalVar / totalBase) * 100 : null;
             return (
               <tr style={{ background: "#EFF6FF", fontWeight: 700 }}>
                 <td style={{ ...tdL, borderTop: "2px solid #2E75B6" }}>TOTAL</td>
