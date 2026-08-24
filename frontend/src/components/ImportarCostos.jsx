@@ -190,7 +190,7 @@ function TablaLabor({ items }) {
 
 // ── Tabla Materia Prima ───────────────────────────────────────────────────────
 
-function TablaMateriales({ items }) {
+function TablaMateriales({ items, pctStd = 6 }) {
   const th = {
     padding: "8px 10px", background: "#1F3864", color: "#fff",
     fontSize: 11, fontWeight: 700, textAlign: "right", whiteSpace: "nowrap",
@@ -199,7 +199,7 @@ function TablaMateriales({ items }) {
   const td = { padding: "7px 10px", fontSize: 12, textAlign: "right", borderBottom: "1px solid #E5E7EB", whiteSpace: "nowrap" };
   const tdL = { ...td, textAlign: "left", fontWeight: 600 };
 
-  const viewModels = items.map((item) => computeMaterialViewModel(item));
+  const viewModels = items.map((item) => computeMaterialViewModel(item, pctStd));
 
   return (
     <div style={{ overflowX: "auto" }}>
@@ -208,7 +208,7 @@ function TablaMateriales({ items }) {
           <tr>
             <th style={thL}>Insumo</th>
             <th style={th}>Costo MP</th>
-            <th style={th}>Std Cant</th>
+            <th style={th} title={`Std real del Excel; si no se importó, Plan Cant menos ${pctStd}%`}>Std Cant</th>
             <th style={th}>Std Valor</th>
             <th style={th}>Plan Cant</th>
             <th style={th}>Plan Valor</th>
@@ -224,12 +224,17 @@ function TablaMateriales({ items }) {
             const rowBg = vm.alertaCantidad ? "#FFF7ED" : i % 2 === 0 ? "#fff" : "#F9FAFB";
             const varCantColor = vm.varCant > 0 ? "#991B1B" : vm.varCant < 0 ? "#065F46" : "#374151";
             const varTitle = vm.varVsPlan ? "Sin Std real importado: variación calculada vs. Plan" : undefined;
+            const stdTitle = vm.stdEsCalc ? `Sin Std real importado: Plan Cant menos ${pctStd}%` : undefined;
             return (
               <tr key={i} style={{ background: rowBg }}>
                 <td style={tdL}>{vm.insumo}</td>
                 <td style={td}>{COP(vm.costoMp)}</td>
-                <td style={td}>{vm.cantStd != null ? fmt(vm.cantStd, 4) : "—"}</td>
-                <td style={{ ...td, fontWeight: 600, color: "#1F3864" }}>{vm.vrStd != null ? COP(vm.vrStd) : "—"}</td>
+                <td style={{ ...td, fontStyle: vm.stdEsCalc ? "italic" : "normal" }} title={stdTitle}>
+                  {vm.cantStd != null ? fmt(vm.cantStd, 4) : "—"}
+                </td>
+                <td style={{ ...td, fontWeight: 600, color: "#1F3864", fontStyle: vm.stdEsCalc ? "italic" : "normal" }} title={stdTitle}>
+                  {vm.vrStd != null ? COP(vm.vrStd) : "—"}
+                </td>
                 <td style={td}>{fmt(vm.cantPlaneado, 4)}</td>
                 <td style={td}>{COP(vm.vrPlaneado)}</td>
                 <td style={td}>{fmt(vm.cantEjecutado, 4)}</td>
@@ -278,7 +283,7 @@ function TablaMateriales({ items }) {
 
 // ── Order Detail View ─────────────────────────────────────────────────────────
 
-function OrderDetail({ order, onBack }) {
+function OrderDetail({ order, onBack, pctStd }) {
   const [activeTab, setActiveTab] = useState("mo");
 
   const cfItems = order.laborItems.filter((x) => x.tipo === "carga_fabril");
@@ -395,7 +400,7 @@ function OrderDetail({ order, onBack }) {
       {activeTab === "mp" && (
         <>
           <SectionHeader>Materia Prima — {mpItems.length} insumo{mpItems.length !== 1 ? "s" : ""}</SectionHeader>
-          <TablaMateriales items={mpItems} />
+          <TablaMateriales items={mpItems} pctStd={pctStd} />
         </>
       )}
     </div>
@@ -476,7 +481,7 @@ function OrderList({ orders, onSelect, onDelete }) {
 
 // ── Main Component ────────────────────────────────────────────────────────────
 
-export default function ImportarCostos({ reload }) {
+export default function ImportarCostos({ reload, parametros }) {
   const [orders, setOrders] = useState([]);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [file, setFile] = useState(null);
@@ -564,6 +569,7 @@ export default function ImportarCostos({ reload }) {
       <OrderDetail
         order={selectedOrder}
         onBack={() => setSelectedOrder(null)}
+        pctStd={parametros?.pctStdMateriaPrima ?? 6}
       />
     );
   }

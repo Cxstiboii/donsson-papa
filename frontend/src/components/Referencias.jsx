@@ -6,6 +6,7 @@ import {
 import { referenciasApi, materialesApi } from "../api.js";
 import { calcCostos, calcCostosEstandar, COP, mesLabel, fmt } from "../utils/costos.js";
 import { parseCOP, formatCOP } from "../utils/costos.js";
+import { computeMaterialViewModel } from "../utils/materialVariance.js";
 import FiltroFecha, { dentroDeRango } from "../FiltroFecha.jsx";
 import CostoOptimo from "./CostoOptimo.jsx";
 
@@ -100,7 +101,7 @@ function VarPctBadge({ value }) {
   );
 }
 
-function TablaMateriasImportadas({ materials }) {
+function TablaMateriasImportadas({ materials, pctStd = 6 }) {
   if (!materials || materials.length === 0) {
     return (
       <div style={{ fontSize: 13, color: "var(--color-muted)", padding: "16px 0" }}>
@@ -109,6 +110,7 @@ function TablaMateriasImportadas({ materials }) {
     );
   }
   const pesados = materials.filter((m) => m.vrOptimo != null).length;
+  const viewModels = materials.map((m) => computeMaterialViewModel(m, pctStd));
   return (
     <div style={{ overflowX: "auto", borderRadius: 8, border: "1px solid var(--color-border)" }}>
       <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
@@ -116,7 +118,7 @@ function TablaMateriasImportadas({ materials }) {
           <tr style={{ background: "#F8FAFC", borderBottom: "1px solid var(--color-border)" }}>
             <th style={TH}>Insumo</th>
             <th style={{ ...TH, textAlign: "right" }}>Costo MP</th>
-            <th style={{ ...TH, textAlign: "right" }}>Cant. Std</th>
+            <th style={{ ...TH, textAlign: "right" }} title={`Std real del Excel; si no se importó, Plan Cant menos ${pctStd}%`}>Cant. Std</th>
             <th style={{ ...TH, textAlign: "right" }}>Vr. Std</th>
             <th style={{ ...TH, textAlign: "right" }}>Cant. Plan</th>
             <th style={{ ...TH, textAlign: "right" }}>Vr. Plan</th>
@@ -129,17 +131,22 @@ function TablaMateriasImportadas({ materials }) {
           </tr>
         </thead>
         <tbody>
-          {materials.map((m, i) => {
+          {viewModels.map((m, i) => {
             const rowBg = i % 2 === 1 ? "#F8FAFC" : undefined;
             const varOptimoEjec = m.vrOptimo != null && m.vrEjecutado > 0
               ? ((m.vrOptimo - m.vrEjecutado) / m.vrEjecutado) * 100
               : null;
+            const stdTitle = m.stdEsCalc ? `Sin Std real importado: Plan Cant menos ${pctStd}%` : undefined;
             return (
               <tr key={m.id} style={{ background: rowBg, borderBottom: "1px solid var(--color-border)" }}>
                 <td style={{ ...TD, fontWeight: 500 }}>{m.insumo}</td>
                 <td style={{ ...TD, textAlign: "right" }}>{COP(m.costoMp)}</td>
-                <td style={{ ...TD, textAlign: "right" }}>{fmt(m.cantStd, 4)}</td>
-                <td style={{ ...TD, textAlign: "right", fontWeight: 600, color: "#1F3864" }}>{COP(m.vrStd)}</td>
+                <td style={{ ...TD, textAlign: "right", fontStyle: m.stdEsCalc ? "italic" : "normal" }} title={stdTitle}>
+                  {fmt(m.cantStd, 4)}
+                </td>
+                <td style={{ ...TD, textAlign: "right", fontWeight: 600, color: "#1F3864", fontStyle: m.stdEsCalc ? "italic" : "normal" }} title={stdTitle}>
+                  {COP(m.vrStd)}
+                </td>
                 <td style={{ ...TD, textAlign: "right" }}>{fmt(m.cantPlaneado, 4)}</td>
                 <td style={{ ...TD, textAlign: "right" }}>{COP(m.vrPlaneado)}</td>
                 <td style={{ ...TD, textAlign: "right" }}>{fmt(m.cantEjecutado, 4)}</td>
@@ -148,7 +155,7 @@ function TablaMateriasImportadas({ materials }) {
                 <td style={{ ...TD, textAlign: "right", fontWeight: 600, color: "#1F3864" }}>
                   {m.vrOptimo != null ? COP(m.vrOptimo) : "—"}
                 </td>
-                <td style={{ ...TD, textAlign: "right" }}><VarPctBadge value={m.variacionPct} /></td>
+                <td style={{ ...TD, textAlign: "right" }}><VarPctBadge value={m.varPct} /></td>
                 <td style={{ ...TD, textAlign: "right" }}><VarPctBadge value={varOptimoEjec} /></td>
               </tr>
             );
@@ -156,7 +163,7 @@ function TablaMateriasImportadas({ materials }) {
           <tr style={{ background: "#EEF2FF", fontWeight: 700, borderTop: "2px solid var(--color-border)" }}>
             <td colSpan={3} style={{ ...TD, fontSize: 12, color: "var(--color-muted)" }}>Total</td>
             <td style={{ ...TD, textAlign: "right", color: "#1F3864" }}>
-              {COP(materials.reduce((s, m) => s + (m.vrStd ?? 0), 0))}
+              {COP(viewModels.reduce((s, m) => s + (m.vrStd ?? 0), 0))}
             </td>
             <td style={TD} />
             <td style={{ ...TD, textAlign: "right", color: "#1F3864" }}>
@@ -1163,7 +1170,7 @@ export default function Referencias({ referencias, materiales, parametros, reloa
                 <>
                   {/* Sección A — Materiales */}
                   <Collapsible title="A — Materiales" icon={Package} badge={drawerRef.costosImportados.materials?.length}>
-                    <TablaMateriasImportadas materials={drawerRef.costosImportados.materials} />
+                    <TablaMateriasImportadas materials={drawerRef.costosImportados.materials} pctStd={parametros?.pctStdMateriaPrima ?? 6} />
                   </Collapsible>
 
                   {/* Sección B — Mano de Obra y Carga Fabril */}
