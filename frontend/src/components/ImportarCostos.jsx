@@ -2,9 +2,9 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import {
   Upload, AlertCircle, CheckCircle, ChevronLeft, Trash2,
   Clock, Package, Wrench, TrendingUp, TrendingDown,
-  AlertTriangle, FileText, CalendarDays,
+  AlertTriangle, FileText, CalendarDays, Pencil,
 } from "lucide-react";
-import { getToken, costosApi } from "../api.js";
+import { getToken, costosApi, parametrosApi } from "../api.js";
 import { COP, fmt } from "../utils/costos.js";
 import { computeMaterialViewModel } from "../utils/materialVariance.js";
 
@@ -190,6 +190,73 @@ function TablaLabor({ items }) {
 
 // ── Tabla Materia Prima ───────────────────────────────────────────────────────
 
+// Editor inline del % usado como fallback de "Std Cant/Valor" (Plan Cant menos
+// este %) cuando la orden no trae el Std real importado del Excel. Es un
+// único parámetro global (Parametros.pctStdMateriaPrima), no algo por orden.
+function PctStdMateriaPrimaEditor({ parametros, reload }) {
+  const [editing, setEditing] = useState(false);
+  const [valor, setValor] = useState(String(parametros?.pctStdMateriaPrima ?? 6));
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  async function guardar() {
+    const num = Number(valor);
+    if (isNaN(num) || num < 0 || num >= 100) {
+      setError("Debe ser un número entre 0 y 99");
+      return;
+    }
+    setSaving(true);
+    setError("");
+    try {
+      await parametrosApi.update({
+        tarifaMOD: parametros?.tarifaMOD ?? 0,
+        tarifaCIF: parametros?.tarifaCIF ?? 0,
+        pctGAV: parametros?.pctGAV ?? 0,
+        pctMargen: parametros?.pctMargen ?? 0,
+        pctStdMateriaPrima: num,
+      });
+      setEditing(false);
+      if (reload) await reload();
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (!editing) {
+    return (
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, fontSize: 12, color: "#6B7280" }}>
+        <span>
+          Std Cant fallback (sin Std real) = Plan Cant − <strong>{parametros?.pctStdMateriaPrima ?? 6}%</strong> (aplica a todas las órdenes)
+        </span>
+        <button className="btn btn-ghost" style={{ height: 24, padding: "0 8px", fontSize: 11 }} onClick={() => setEditing(true)}>
+          <Pencil size={11} /> Editar %
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+      <label style={{ fontSize: 12, color: "#6B7280" }}>% a restar de Plan Cant:</label>
+      <input
+        type="number" className="input" style={{ width: 80, height: 28, fontSize: 12 }}
+        value={valor} min={0} max={99} step="0.1"
+        onChange={(e) => setValor(e.target.value)}
+      />
+      <button className="btn btn-primary" style={{ height: 28, padding: "0 10px", fontSize: 12 }} disabled={saving} onClick={guardar}>
+        Guardar
+      </button>
+      <button className="btn btn-ghost" style={{ height: 28, padding: "0 10px", fontSize: 12 }} disabled={saving}
+        onClick={() => { setEditing(false); setValor(String(parametros?.pctStdMateriaPrima ?? 6)); setError(""); }}>
+        Cancelar
+      </button>
+      {error && <span style={{ fontSize: 11, color: "#991B1B" }}>{error}</span>}
+    </div>
+  );
+}
+
 function TablaMateriales({ items, pctStd = 6 }) {
   const th = {
     padding: "8px 10px", background: "#1F3864", color: "#fff",
@@ -283,7 +350,7 @@ function TablaMateriales({ items, pctStd = 6 }) {
 
 // ── Order Detail View ─────────────────────────────────────────────────────────
 
-function OrderDetail({ order, onBack, pctStd }) {
+function OrderDetail({ order, onBack, pctStd, parametros, reload }) {
   const [activeTab, setActiveTab] = useState("mo");
 
   const cfItems = order.laborItems.filter((x) => x.tipo === "carga_fabril");
@@ -400,6 +467,7 @@ function OrderDetail({ order, onBack, pctStd }) {
       {activeTab === "mp" && (
         <>
           <SectionHeader>Materia Prima — {mpItems.length} insumo{mpItems.length !== 1 ? "s" : ""}</SectionHeader>
+          <PctStdMateriaPrimaEditor parametros={parametros} reload={reload} />
           <TablaMateriales items={mpItems} pctStd={pctStd} />
         </>
       )}
@@ -570,6 +638,8 @@ export default function ImportarCostos({ reload, parametros }) {
         order={selectedOrder}
         onBack={() => setSelectedOrder(null)}
         pctStd={parametros?.pctStdMateriaPrima ?? 6}
+        parametros={parametros}
+        reload={reload}
       />
     );
   }
